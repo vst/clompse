@@ -15,24 +15,24 @@ import qualified Data.Time as Time
 import Data.Version (Version, showVersion)
 import qualified GitHash as Githash
 import qualified Language.Haskell.TH as TH
-import qualified Paths_haskell_template_hebele as Paths
+import qualified Paths_clompse as Paths
 import qualified System.Info
 
 
 -- | Application name.
 --
 -- >>> name
--- "haskell-template-hebele"
+-- "clompse"
 name :: T.Text
-name = "haskell-template-hebele"
+name = "clompse"
 
 
 -- | Application title.
 --
 -- >>> title
--- "Haskell Project Template"
+-- "Rainwater Harvesting"
 title :: T.Text
-title = "Haskell Project Template"
+title = "Rainwater Harvesting"
 
 
 -- | Application version.
