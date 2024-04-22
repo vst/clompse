@@ -23,6 +23,8 @@ library:
     - -Wunused-packages
   dependencies:
     - aeson
+    - autodocodec
+    - autodocodec-schema
     - bytestring
     - githash
     - optparse-applicative
@@ -30,6 +32,8 @@ library:
     - template-haskell
     - text
     - time
+    - unordered-containers
+    - yaml
 
 executables:
   clompse:

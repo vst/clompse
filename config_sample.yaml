@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=./config_schema.json
+
+name: "Example Configuration"
+
+cloud_profiles:
+  - name: "AWS (Personal)"
+    connection:
+      type: "aws"
+      value:
+        access_key_id: "AKIAIOSFODNN7EXAMPLE"
+        secret_access_key: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+  - name: "AWS (Work)"
+    connection:
+      type: "aws"
+      value:
+        access_key_id: "AKIAIOSFODH7EXAMPLE"
+        secret_access_key: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+  - name: "DigitalOcean (Client ABC)"
+    connection:
+      type: "do"
+      value:
+        token: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  - name: "Hetzner (Client XYZ)"
+    connection:
+      type: "hetzner"
+      value:
+        token: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"

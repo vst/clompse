@@ -1,0 +1,67 @@
+{
+  "$comment": "Application Configuration\nConfig",
+  "properties": {
+    "cloud_profiles": {
+      "$comment": "List of cloud profiles.",
+      "items": {
+        "$comment": "Cloud Profile\nCloudProfile",
+        "properties": {
+          "connection": {
+            "$comment": "Cloud API connection details.\nCloudConnection",
+            "oneOf": [
+              {
+                "properties": {
+                  "type": { "const": "do" },
+                  "value": {
+                    "$comment": "DigitalOcean connection details\nDigitalOcean Connection\nDigitalOceanConnection",
+                    "properties": { "token": { "$comment": "DigitalOcean API token.", "type": "string" } },
+                    "required": ["token"],
+                    "type": "object"
+                  }
+                },
+                "required": ["type", "value"],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "type": { "const": "hetzner" },
+                  "value": {
+                    "$comment": "Hetzner connection details\nHetzner Connection\nHetznerConnection",
+                    "properties": { "token": { "$comment": "Hetzner API token.", "type": "string" } },
+                    "required": ["token"],
+                    "type": "object"
+                  }
+                },
+                "required": ["type", "value"],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "type": { "const": "aws" },
+                  "value": {
+                    "$comment": "AWS connection details\nAWS Connection\nAwsConnection",
+                    "properties": {
+                      "access_key_id": { "$comment": "AWS access key ID.", "type": "string" },
+                      "secret_access_key": { "$comment": "AWS secret access key.", "type": "string" }
+                    },
+                    "required": ["secret_access_key", "access_key_id"],
+                    "type": "object"
+                  }
+                },
+                "required": ["type", "value"],
+                "type": "object"
+              }
+            ],
+            "type": "object"
+          },
+          "name": { "$comment": "Name of the cloud profile.", "type": "string" }
+        },
+        "required": ["connection", "name"],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "name": { "$comment": "Name of the configuration.", "type": "string" }
+  },
+  "type": "object"
+}
