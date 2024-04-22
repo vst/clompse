@@ -1,15 +1,18 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications #-}
 
 -- | This module provides top-level definitions for the CLI program.
-module Hebele.Cli where
+module Clompse.Cli where
 
+import qualified Autodocodec.Schema as ADC.Schema
+import Clompse.Config (Config)
+import qualified Clompse.Meta as Meta
 import Control.Applicative ((<**>), (<|>))
 import Control.Monad (join)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy.Char8 as BLC
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
-import qualified Hebele.Meta as Meta
 import qualified Options.Applicative as OA
 import System.Exit (ExitCode (..))
 
@@ -36,31 +39,33 @@ cli =
 -- | Option parser for top-level commands.
 optProgram :: OA.Parser (IO ExitCode)
 optProgram =
-  commandGreet
+  commandConfig
     <|> commandVersion
 
 
 -- * Commands
 
 
--- ** greet
+-- ** config
 
 
--- | Definition for @greet@ CLI command.
-commandGreet :: OA.Parser (IO ExitCode)
-commandGreet = OA.hsubparser (OA.command "greet" (OA.info parser infomod) <> OA.metavar "greet")
+-- | Definition for @config@ CLI command.
+commandConfig :: OA.Parser (IO ExitCode)
+commandConfig = OA.hsubparser (OA.command "config" (OA.info parser infomod) <> OA.metavar "config")
   where
-    infomod = OA.fullDesc <> infoModHeader <> OA.progDesc "Greet user." <> OA.footer "This command prints a greeting message to the console."
-    parser =
-      doGreet
-        <$> OA.strOption (OA.short 'n' <> OA.long "name" <> OA.value "World" <> OA.showDefault <> OA.help "Whom to greet.")
+    infomod = OA.fullDesc <> infoModHeader <> OA.progDesc "Configuration commands." <> OA.footer "This command provides various configuration sub-commands."
+    parser = commandConfigSchema
 
 
--- | @greet@ CLI command program.
-doGreet :: T.Text -> IO ExitCode
-doGreet n = do
-  TIO.putStrLn ("Hello " <> n <> "!")
-  pure ExitSuccess
+-- *** config schema
+
+
+-- | Definition for @config schema@ CLI command.
+commandConfigSchema :: OA.Parser (IO ExitCode)
+commandConfigSchema = OA.hsubparser (OA.command "schema" (OA.info parser infomod) <> OA.metavar "schema")
+  where
+    infomod = OA.fullDesc <> infoModHeader <> OA.progDesc "Show configuration schema." <> OA.footer "This command prints the configuration JSON schema."
+    parser = pure (BLC.putStrLn (Aeson.encode (ADC.Schema.jsonSchemaViaCodec @Config)) >> pure ExitSuccess)
 
 
 -- ** version

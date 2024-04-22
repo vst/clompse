@@ -4,7 +4,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 -- | This module provides project metadata information definitions.
-module Hebele.Meta where
+module Clompse.Meta where
 
 import Data.Aeson (ToJSON (toEncoding))
 import qualified Data.Aeson as Aeson
