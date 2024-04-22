@@ -5,7 +5,7 @@
 module Clompse.Cli where
 
 import qualified Autodocodec.Schema as ADC.Schema
-import Clompse.Config (Config)
+import Clompse.Config (Config, readConfigFile)
 import qualified Clompse.Meta as Meta
 import Control.Applicative ((<**>), (<|>))
 import Control.Monad (join)
@@ -54,7 +54,9 @@ commandConfig :: OA.Parser (IO ExitCode)
 commandConfig = OA.hsubparser (OA.command "config" (OA.info parser infomod) <> OA.metavar "config")
   where
     infomod = OA.fullDesc <> infoModHeader <> OA.progDesc "Configuration commands." <> OA.footer "This command provides various configuration sub-commands."
-    parser = commandConfigSchema
+    parser =
+      commandConfigSchema
+        <|> commandConfigPrint
 
 
 -- *** config schema
@@ -66,6 +68,28 @@ commandConfigSchema = OA.hsubparser (OA.command "schema" (OA.info parser infomod
   where
     infomod = OA.fullDesc <> infoModHeader <> OA.progDesc "Show configuration schema." <> OA.footer "This command prints the configuration JSON schema."
     parser = pure (BLC.putStrLn (Aeson.encode (ADC.Schema.jsonSchemaViaCodec @Config)) >> pure ExitSuccess)
+
+
+-- *** config print
+
+
+-- | Definition for @config print@ CLI command.
+commandConfigPrint :: OA.Parser (IO ExitCode)
+commandConfigPrint = OA.hsubparser (OA.command "print" (OA.info parser infomod) <> OA.metavar "print")
+  where
+    infomod = OA.fullDesc <> infoModHeader <> OA.progDesc "Read, validate and print configuration." <> OA.footer "This command reads, validates and prints the given configuration."
+    parser =
+      doConfigPrint
+        <$> OA.strOption (OA.short 'f' <> OA.long "file" <> OA.metavar "FILE" <> OA.help "Configuration file to read.")
+
+
+-- | @config print@ CLI command program.
+doConfigPrint :: FilePath -> IO ExitCode
+doConfigPrint fp = do
+  eCfg <- readConfigFile fp
+  case eCfg of
+    Left err -> TIO.putStrLn ("Error reading configuration: " <> err) >> pure (ExitFailure 1)
+    Right cfg -> BLC.putStrLn (Aeson.encode cfg) >> pure ExitSuccess
 
 
 -- ** version

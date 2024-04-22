@@ -11,7 +11,9 @@ import Clompse.Providers.Hetzner (HetznerConnection)
 import qualified Data.Aeson as Aeson
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as T
+import qualified Data.Yaml as Yaml
 import GHC.Generics (Generic)
+import qualified Zamazingo.Text as Z.Text
 
 
 data Config = Config
@@ -80,3 +82,15 @@ instance ADC.HasObjectCodec CloudConnection where
           , ("do", ("CloudConnectionDigitalOcean", ADC.mapToDecoder CloudConnectionDo codecCloudConnectionDigitalOcean))
           , ("hetzner", ("CloudProfile", ADC.mapToDecoder CloudConnectionHetzner codecCloudConnectionHetzner))
           ]
+
+
+-- | Attempts to read a configuration file and return 'Config'.
+--
+-- Note that this function does not check if the file exists or is
+-- readable (TODO).
+readConfigFile :: FilePath -> IO (Either T.Text Config)
+readConfigFile fp = do
+  res <- Yaml.decodeFileEither fp
+  case res of
+    Left err -> pure (Left (Z.Text.tshow err))
+    Right sv -> pure (Right sv)
