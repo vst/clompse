@@ -27,11 +27,15 @@ library:
     - autodocodec-schema
     - bytestring
     - githash
+    - ip
+    - mtl
     - optparse-applicative
+    - scientific
     - string-interpolate
     - template-haskell
     - text
     - time
+    - typed-process
     - unordered-containers
     - yaml
 

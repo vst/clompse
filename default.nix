@@ -108,6 +108,7 @@ let
 
       ## Other build inputs for various development requirements:
       pkgs.docker-client
+      pkgs.doctl
       pkgs.git
       pkgs.nil
       pkgs.nixpkgs-fmt
