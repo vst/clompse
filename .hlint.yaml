@@ -33,6 +33,7 @@
         - DeriveGeneric
         - DerivingVia
         - FlexibleContexts
+        - OverloadedRecordDot
         - OverloadedStrings
         - QuasiQuotes
         - RecordWildCards

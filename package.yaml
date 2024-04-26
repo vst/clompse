@@ -23,12 +23,17 @@ library:
     - -Wunused-packages
   dependencies:
     - aeson
+    - amazonka
+    - amazonka-ec2
+    - amazonka-lightsail
     - autodocodec
     - autodocodec-schema
     - bytestring
+    - conduit
     - githash
     - hetzner
     - ip
+    - lens
     - mtl
     - optparse-applicative
     - scientific
