@@ -7,6 +7,7 @@
 module Clompse.Providers.Do where
 
 import qualified Autodocodec as ADC
+import qualified Clompse.Types as Types
 import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.IO.Class (MonadIO)
 import qualified Data.Aeson as Aeson
@@ -21,6 +22,7 @@ import GHC.Generics (Generic)
 import System.Exit (ExitCode (..))
 import qualified System.Process.Typed as TP
 import qualified Zamazingo.Net as Z.Net
+import qualified Zamazingo.Text as Z.Text
 
 
 -- * Connection
@@ -400,6 +402,30 @@ doListFirewalls conn =
 
 
 -- * Helpers
+
+
+toServer :: DoDroplet -> Types.Server
+toServer DoDroplet {..} =
+  Types.Server
+    { _serverId = Z.Text.tshow _doDropletId
+    , _serverName = Just _doDropletName
+    , _serverCpu = Just _doDropletVcpus
+    , _serverRam = Just _doDropletMemory
+    , _serverDisk = Just _doDropletDisk
+    , _serverState = toServerState _doDropletStatus
+    , _serverCreatedAt = Just _doDropletCreatedAt
+    , _serverProvider = Types.ProviderDo
+    , _serverRegion = _doRegionSlug _doDropletRegion
+    , _serverType = Just _doDropletSizeSlug
+    }
+
+
+toServerState :: T.Text -> Types.State
+toServerState "new" = Types.StateCreating
+toServerState "active" = Types.StateRunning
+toServerState "off" = Types.StateStopped
+toServerState "archive" = Types.StateArchived
+toServerState _ = Types.StateUnknown
 
 
 doctl

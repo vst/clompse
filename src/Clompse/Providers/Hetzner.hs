@@ -2,19 +2,21 @@
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Clompse.Providers.Hetzner where
 
 import qualified Autodocodec as ADC
+import qualified Clompse.Types as Types
 import Control.Monad.Except (MonadError)
-import Control.Monad.IO.Class (MonadIO (liftIO))
+import Control.Monad.IO.Class (MonadIO)
 import qualified Data.Aeson as Aeson
+import Data.Int (Int16, Int32)
 import qualified Data.List as List
-import qualified Data.List.NonEmpty as NE
 import Data.Maybe (mapMaybe)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
-import qualified Data.Text.IO as TIO
+import qualified Data.Time as Time
 import GHC.Generics (Generic)
 import qualified Hetzner.Cloud as Hetzner
 import qualified Zamazingo.Text as Z.Text
@@ -99,31 +101,52 @@ hetznerListServersWithFirewalls conn = do
 -- * Helpers
 
 
-printServerFirewall
-  :: MonadIO m
-  => (Hetzner.Server, [Hetzner.Firewall])
-  -> m ()
-printServerFirewall (i, sgs) =
-  let name = Hetzner.serverName i
-      secs = T.intercalate " " (fmap firewallToText sgs)
-   in liftIO $ TIO.putStrLn (name <> ": " <> secs)
+toServer :: Hetzner.Server -> Types.Server
+toServer Hetzner.Server {..} =
+  Types.Server
+    { Types._serverId = toServerId serverID
+    , Types._serverName = Just serverName
+    , Types._serverCpu = Just (toServerCpu serverType)
+    , Types._serverRam = Just (toServerRam serverType)
+    , Types._serverDisk = Just (toServerDisk serverType)
+    , Types._serverState = toServerState serverStatus
+    , Types._serverCreatedAt = Just (Time.zonedTimeToUTC serverCreated)
+    , Types._serverProvider = Types.ProviderHetzner
+    , Types._serverRegion = Hetzner.datacenterName serverDatacenter
+    , Types._serverType = Just (Hetzner.serverTypeDescription serverType)
+    }
 
 
-firewallToText
-  :: Hetzner.Firewall
-  -> T.Text
-firewallToText fw =
-  let name = Hetzner.firewallName fw
-      rules = fmap ruleToText (Hetzner.firewallRules fw)
-   in name <> "=" <> T.intercalate "," rules
+toServerId :: Hetzner.ServerID -> T.Text
+toServerId (Hetzner.ServerID x) =
+  Z.Text.tshow x
 
 
-ruleToText :: Hetzner.FirewallRule -> T.Text
-ruleToText rule =
-  let dir = Z.Text.tshow (Hetzner.firewallRuleDirection rule)
-      proto = Z.Text.tshow (Hetzner.firewallRuleProtocol rule)
-      ips = fmap (either Z.Text.tshow Z.Text.tshow) (NE.toList (Hetzner.firewallRuleIPs rule))
-   in dir <> "+" <> proto <> "://" <> T.intercalate ";" ips
+toServerCpu :: Hetzner.ServerType -> Int16
+toServerCpu Hetzner.ServerType {..} =
+  fromIntegral serverCores
+
+
+toServerRam :: Hetzner.ServerType -> Int32
+toServerRam Hetzner.ServerType {..} =
+  fromIntegral serverMemory * 1024
+
+
+toServerDisk :: Hetzner.ServerType -> Int32
+toServerDisk Hetzner.ServerType {..} =
+  fromIntegral serverDisk
+
+
+toServerState :: Hetzner.ServerStatus -> Types.State
+toServerState Hetzner.Initializing = Types.StateCreating
+toServerState Hetzner.Starting = Types.StateCreating
+toServerState Hetzner.Running = Types.StateRunning
+toServerState Hetzner.Stopping = Types.StateStopping
+toServerState Hetzner.Off = Types.StateStopped
+toServerState Hetzner.Deleting = Types.StateTerminating
+toServerState Hetzner.Rebuilding = Types.StateRebuilding
+toServerState Hetzner.Migrating = Types.StateMigrating
+toServerState Hetzner.StatusUnknown = Types.StateUnknown
 
 
 _tokenFromConnection :: HetznerConnection -> Hetzner.Token

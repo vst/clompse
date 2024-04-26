@@ -38,6 +38,7 @@
         - QuasiQuotes
         - RecordWildCards
         - TemplateHaskell
+        - TupleSections
         - TypeApplications
 
 ################

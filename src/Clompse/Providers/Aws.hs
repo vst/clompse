@@ -4,31 +4,37 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TupleSections #-}
 
 module Clompse.Providers.Aws where
 
 import qualified Amazonka as Aws
 import qualified Amazonka.Auth as Aws.Auth
 import qualified Amazonka.Data as Aws.Data
+import qualified Amazonka.Data.Time as Aws.Data.Time
 import qualified Amazonka.EC2 as Aws.Ec2
 import qualified Amazonka.EC2.Lens as Aws.Ec2.Lens
 import qualified Amazonka.EC2.Types as Aws.Ec2.Types
+import qualified Amazonka.EC2.Types.CpuOptions as Aws.Ec2.Types.CpuOptions
 import qualified Amazonka.Lightsail as Aws.Lightsail
 import qualified Amazonka.Lightsail.Lens as Aws.Lightsail.Lens
+import qualified Amazonka.Lightsail.Types as Aws.Lightsail.Types
+import qualified Amazonka.Lightsail.Types.Disk as Aws.Lightsail.Types.Disk
 import qualified Autodocodec as ADC
+import qualified Clompse.Types as Types
 import Conduit ((.|))
-import Control.Applicative ((<|>))
 import qualified Control.Lens as L
 import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import qualified Data.Aeson as Aeson
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
+import Data.Int (Int16, Int32)
 import qualified Data.List as L
 import Data.Maybe (catMaybes, fromMaybe)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
-import qualified Data.Text.IO as TIO
+import GHC.Float (double2Int)
 import GHC.Generics (Generic)
 import qualified Zamazingo.Text as Z.Text
 
@@ -116,7 +122,7 @@ awsEc2ListAllInstances
   :: MonadIO m
   => MonadError AwsError m
   => AwsConnection
-  -> m [Aws.Ec2.Instance]
+  -> m [(Aws.Region, Aws.Ec2.Instance)]
 awsEc2ListAllInstances cfg = do
   regions <- awsEc2ListAllRegions cfg
   concat <$> mapM (awsEc2ListAllInstancesForRegion cfg) regions
@@ -127,7 +133,7 @@ awsEc2ListAllInstancesForRegion
   => MonadError AwsError m
   => AwsConnection
   -> Aws.Region
-  -> m [Aws.Ec2.Instance]
+  -> m [(Aws.Region, Aws.Ec2.Instance)]
 awsEc2ListAllInstancesForRegion cfg reg = do
   env <- (\x -> x {Aws.region = reg}) <$> _envFromConnection cfg
   let prog =
@@ -135,7 +141,7 @@ awsEc2ListAllInstancesForRegion cfg reg = do
           .| CL.concatMap (L.view $ Aws.Ec2.Lens.describeInstancesResponse_reservations . L._Just)
           .| CL.concatMap (L.view $ Aws.Ec2.Lens.reservation_instances . L._Just)
           .| CL.consume
-  liftIO . Aws.runResourceT . C.runConduit $ prog
+  fmap (fmap (reg,)) . liftIO . Aws.runResourceT . C.runConduit $ prog
 
 
 -- *** Security Groups
@@ -173,11 +179,11 @@ awsEc2ListAllInstancesWithSecurityGroups
   :: MonadIO m
   => MonadError AwsError m
   => AwsConnection
-  -> m [(Aws.Ec2.Instance, [Aws.Ec2.SecurityGroup])]
+  -> m [(Aws.Region, Aws.Ec2.Instance, [Aws.Ec2.SecurityGroup])]
 awsEc2ListAllInstancesWithSecurityGroups cfg = do
-  instances <- awsEc2ListAllInstances cfg
+  instancesWithRegions <- awsEc2ListAllInstances cfg
   securityGroups <- awsEc2ListAllSecurityGroups cfg
-  pure (fmap (\i -> (i, findSecurityGroups securityGroups i)) instances)
+  pure (fmap (\(r, i) -> (r, i, findSecurityGroups securityGroups i)) instancesWithRegions)
   where
     findSecurityGroups sgs i =
       let sids = catMaybes $ foldMap (fmap (L.^. Aws.Ec2.Lens.groupIdentifier_groupId)) (i L.^. Aws.Ec2.Lens.instance_securityGroups)
@@ -230,7 +236,7 @@ awsLightsailListAllInstances
   :: MonadIO m
   => MonadError AwsError m
   => AwsConnection
-  -> m [Aws.Lightsail.Instance]
+  -> m [(Aws.Region, Aws.Lightsail.Instance)]
 awsLightsailListAllInstances cfg = do
   regions <- awsLightsailListAllRegions cfg
   concat <$> mapM (awsLightsailListAllInstancesForRegion cfg) regions
@@ -241,17 +247,105 @@ awsLightsailListAllInstancesForRegion
   => MonadError AwsError m
   => AwsConnection
   -> Aws.Region
-  -> m [Aws.Lightsail.Instance]
+  -> m [(Aws.Region, Aws.Lightsail.Instance)]
 awsLightsailListAllInstancesForRegion cfg reg = do
   env <- (\x -> x {Aws.region = reg}) <$> _envFromConnection cfg
   let prog =
         Aws.paginate env Aws.Lightsail.newGetInstances
           .| CL.concatMap (L.view $ Aws.Lightsail.Lens.getInstancesResponse_instances . L._Just)
           .| CL.consume
-  liftIO . Aws.runResourceT . C.runConduit $ prog
+  fmap (fmap (reg,)) . liftIO . Aws.runResourceT . C.runConduit $ prog
 
 
 -- * Helpers
+
+
+-- ** EC2
+
+
+ec2InstanceToServer :: Aws.Region -> Aws.Ec2.Instance -> Types.Server
+ec2InstanceToServer region i@Aws.Ec2.Instance' {..} =
+  Types.Server
+    { Types._serverId = instanceId
+    , Types._serverName = awsEc2InstanceName i
+    , Types._serverCpu = fromIntegral <$> (Aws.Ec2.Types.CpuOptions.coreCount =<< cpuOptions)
+    , Types._serverRam = Nothing
+    , Types._serverDisk = Nothing
+    , Types._serverState = ec2InstanceToServerState state
+    , Types._serverCreatedAt = Just (Aws.Data.Time.fromTime launchTime)
+    , Types._serverProvider = Types.ProviderAws
+    , Types._serverRegion = Aws.fromRegion region
+    , Types._serverType = Just (Aws.Ec2.fromInstanceType instanceType)
+    }
+
+
+ec2InstanceToServerState :: Aws.Ec2.Types.InstanceState -> Types.State
+ec2InstanceToServerState Aws.Ec2.Types.InstanceState' {..} =
+  case name of
+    Aws.Ec2.Types.InstanceStateName_Pending -> Types.StateCreating
+    Aws.Ec2.Types.InstanceStateName_Running -> Types.StateRunning
+    Aws.Ec2.Types.InstanceStateName_Stopping -> Types.StateStopping
+    Aws.Ec2.Types.InstanceStateName_Stopped -> Types.StateStopped
+    Aws.Ec2.Types.InstanceStateName_Shutting_down -> Types.StateStopping
+    Aws.Ec2.Types.InstanceStateName_Terminated -> Types.StateTerminating
+    _ -> Types.StateUnknown
+
+
+awsEc2InstanceName
+  :: Aws.Ec2.Instance
+  -> Maybe T.Text
+awsEc2InstanceName i =
+  let mTag = L.find (\t -> T.toLower (t L.^. Aws.Ec2.Lens.tag_key) == "name") =<< (i L.^. Aws.Ec2.Lens.instance_tags)
+   in (L.^. Aws.Ec2.Lens.tag_value) <$> mTag
+
+
+-- ** Lightsail
+
+
+lightsailInstanceToServer :: Aws.Region -> Aws.Lightsail.Instance -> Types.Server
+lightsailInstanceToServer region Aws.Lightsail.Types.Instance' {..} =
+  Types.Server
+    { Types._serverId = fromMaybe "<unknown>" arn
+    , Types._serverName = name
+    , Types._serverCpu = lightsailInstanceCpu =<< hardware
+    , Types._serverRam = lightsailInstanceRam =<< hardware
+    , Types._serverDisk = lightsailInstanceDisk =<< hardware
+    , Types._serverState = maybe Types.StateUnknown lightsailInstanceToServerState state
+    , Types._serverCreatedAt = Aws.Data.Time.fromTime <$> createdAt
+    , Types._serverProvider = Types.ProviderAws
+    , Types._serverRegion = Aws.fromRegion region
+    , Types._serverType = bundleId
+    }
+
+
+lightsailInstanceCpu :: Aws.Lightsail.Types.InstanceHardware -> Maybe Int16
+lightsailInstanceCpu Aws.Lightsail.Types.InstanceHardware' {..} =
+  fromIntegral <$> cpuCount
+
+
+lightsailInstanceRam :: Aws.Lightsail.Types.InstanceHardware -> Maybe Int32
+lightsailInstanceRam Aws.Lightsail.Types.InstanceHardware' {..} =
+  fromIntegral . double2Int . (1024 *) <$> ramSizeInGb
+
+
+lightsailInstanceDisk :: Aws.Lightsail.Types.InstanceHardware -> Maybe Int32
+lightsailInstanceDisk Aws.Lightsail.Types.InstanceHardware' {..} =
+  sum . fmap (maybe 0 fromIntegral . Aws.Lightsail.Types.Disk.sizeInGb) <$> disks
+
+
+lightsailInstanceToServerState :: Aws.Lightsail.Types.InstanceState -> Types.State
+lightsailInstanceToServerState Aws.Lightsail.Types.InstanceState' {..} =
+  case name of
+    Just "pending" -> Types.StateCreating
+    Just "running" -> Types.StateRunning
+    Just "stopping" -> Types.StateStopping
+    Just "stopped" -> Types.StateStopped
+    Just "shutting-down" -> Types.StateTerminating
+    Just "terminated" -> Types.StateTerminated
+    _ -> Types.StateUnknown
+
+
+-- ** Others
 
 
 _envFromConnection
@@ -263,58 +357,3 @@ _envFromConnection AwsConnection {..} =
   where
     accessKeyId = Aws.AccessKey (TE.encodeUtf8 _awsConnectionAccessKeyId)
     secretAccessKey = Aws.SecretKey (TE.encodeUtf8 _awsConnectionSecretAccessKey)
-
-
-printAwsEc2InstanceWithSecurityGroup
-  :: MonadIO m
-  => (Aws.Ec2.Instance, [Aws.Ec2.SecurityGroup])
-  -> m ()
-printAwsEc2InstanceWithSecurityGroup (i, sgs) =
-  let name = awsEc2InstanceName i
-      secs = T.intercalate " " (fmap awsEc2SecurityToText sgs)
-   in liftIO $ TIO.putStrLn (name <> ": " <> secs)
-
-
-awsEc2InstanceName
-  :: Aws.Ec2.Instance
-  -> T.Text
-awsEc2InstanceName i =
-  let mTag = L.find (\t -> T.toLower (t L.^. Aws.Ec2.Lens.tag_key) == "name") =<< (i L.^. Aws.Ec2.Lens.instance_tags)
-   in maybe (i L.^. Aws.Ec2.Lens.instance_instanceId) (L.^. Aws.Ec2.Lens.tag_value) mTag
-
-
-awsEc2SecurityToText
-  :: Aws.Ec2.SecurityGroup
-  -> T.Text
-awsEc2SecurityToText sg =
-  let name = sg L.^. Aws.Ec2.Lens.securityGroup_groupName
-      perms = fromMaybe [] $ sg L.^. Aws.Ec2.Lens.securityGroup_ipPermissions
-   in name <> "=" <> T.intercalate "," (fmap awsEc2IpPermToText perms)
-
-
-awsEc2IpPermToText
-  :: Aws.Ec2.IpPermission
-  -> T.Text
-awsEc2IpPermToText x =
-  let proto = x L.^. Aws.Ec2.Lens.ipPermission_ipProtocol
-      portS = x L.^. Aws.Ec2.Lens.ipPermission_fromPort
-      portE = x L.^. Aws.Ec2.Lens.ipPermission_toPort
-   in proto <> "/" <> maybe "0" Z.Text.tshow portS <> "-" <> maybe "0" Z.Text.tshow portE
-
-
-printAwsLightsailInstanceSecurity
-  :: MonadIO m
-  => Aws.Lightsail.Instance
-  -> m ()
-printAwsLightsailInstanceSecurity i =
-  let name = fromMaybe (error "Missing instance name") (i L.^. Aws.Lightsail.Lens.instance_name <|> i L.^. Aws.Lightsail.Lens.instance_arn)
-      ports = fromMaybe [] ((L.^. Aws.Lightsail.Lens.instanceNetworking_ports) =<< i L.^. Aws.Lightsail.Lens.instance_networking)
-      portsText = T.intercalate " " (fmap portToText ports)
-   in liftIO $ TIO.putStrLn (name <> ": " <> portsText)
-  where
-    portToText p =
-      let pN = fromMaybe "<NA>" (p L.^. Aws.Lightsail.Lens.instancePortInfo_commonName)
-          pP = maybe "<NA>" Aws.Lightsail.fromNetworkProtocol (p L.^. Aws.Lightsail.Lens.instancePortInfo_protocol)
-          pS = p L.^. Aws.Lightsail.Lens.instancePortInfo_fromPort
-          pE = p L.^. Aws.Lightsail.Lens.instancePortInfo_toPort
-       in pN <> "=" <> pP <> "/" <> maybe "0" Z.Text.tshow pS <> "-" <> maybe "0" Z.Text.tshow pE

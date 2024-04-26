@@ -24,6 +24,7 @@ library:
   dependencies:
     - aeson
     - amazonka
+    - amazonka-core
     - amazonka-ec2
     - amazonka-lightsail
     - autodocodec
