@@ -27,6 +27,7 @@ library:
     - autodocodec-schema
     - bytestring
     - githash
+    - hetzner
     - ip
     - mtl
     - optparse-applicative
