@@ -37,7 +37,7 @@ instance ADC.HasCodec Config where
 
 data CloudProfile = CloudProfile
   { _cloudProfileName :: !T.Text
-  , _cloudProfileConnection :: !CloudConnection
+  , _cloudProfileConnections :: ![CloudConnection]
   }
   deriving (Eq, Generic, Show)
   deriving (Aeson.FromJSON, Aeson.ToJSON) via (ADC.Autodocodec CloudProfile)
@@ -51,7 +51,7 @@ instance ADC.HasCodec CloudProfile where
         ADC.object "CloudProfile" $
           CloudProfile
             <$> ADC.requiredField "name" "Name of the cloud profile." ADC..= _cloudProfileName
-            <*> ADC.requiredField "connection" "Cloud API connection details." ADC..= _cloudProfileConnection
+            <*> ADC.requiredField "connections" "Cloud API connection details." ADC..= _cloudProfileConnections
 
 
 data CloudConnection

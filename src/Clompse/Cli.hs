@@ -7,6 +7,7 @@ module Clompse.Cli where
 import qualified Autodocodec.Schema as ADC.Schema
 import Clompse.Config (Config, readConfigFile)
 import qualified Clompse.Meta as Meta
+import qualified Clompse.Programs.ListServers as Programs
 import Control.Applicative ((<**>), (<|>))
 import Control.Monad (join)
 import qualified Data.Aeson as Aeson
@@ -40,6 +41,7 @@ cli =
 optProgram :: OA.Parser (IO ExitCode)
 optProgram =
   commandConfig
+    <|> commandList
     <|> commandVersion
 
 
@@ -90,6 +92,31 @@ doConfigPrint fp = do
   case eCfg of
     Left err -> TIO.putStrLn ("Error reading configuration: " <> err) >> pure (ExitFailure 1)
     Right cfg -> BLC.putStrLn (Aeson.encode cfg) >> pure ExitSuccess
+
+
+-- ** list
+
+
+-- | Definition for @list@ CLI command.
+commandList :: OA.Parser (IO ExitCode)
+commandList = OA.hsubparser (OA.command "list" (OA.info parser infomod) <> OA.metavar "list")
+  where
+    infomod = OA.fullDesc <> infoModHeader <> OA.progDesc "List servers." <> OA.footer "This command lists servers."
+    parser =
+      doList
+        <$> OA.strOption (OA.short 'c' <> OA.long "config" <> OA.metavar "CONFIG" <> OA.help "Configuration file to use.")
+
+
+-- | @list@ CLI command program.
+doList :: FilePath -> IO ExitCode
+doList fp = do
+  eCfg <- readConfigFile fp
+  case eCfg of
+    Left err -> TIO.putStrLn ("Error reading configuration: " <> err) >> pure (ExitFailure 1)
+    Right cfg -> do
+      servers <- Programs.listServers cfg
+      BLC.putStrLn (Aeson.encode servers)
+      pure ExitSuccess
 
 
 -- ** version

@@ -58,7 +58,10 @@ let
   thisHaskell = mkHaskell {
     haskell = baseHaskell;
     packages = thisHaskellPackagesAll;
-    overrides = self: super: { };
+    overrides = self: super: {
+      bytehash = pkgs.haskell.lib.dontCheck super.bytehash;
+      hetzner = self.hetzner_0_6_0_0;
+    };
   };
 
   ###########
@@ -108,6 +111,7 @@ let
 
       ## Other build inputs for various development requirements:
       pkgs.docker-client
+      pkgs.doctl
       pkgs.git
       pkgs.nil
       pkgs.nixpkgs-fmt
