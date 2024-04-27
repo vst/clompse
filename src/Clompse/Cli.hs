@@ -1,4 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 
 -- | This module provides top-level definitions for the CLI program.
@@ -8,14 +10,19 @@ import qualified Autodocodec.Schema as ADC.Schema
 import Clompse.Config (Config, readConfigFile)
 import qualified Clompse.Meta as Meta
 import qualified Clompse.Programs.ListServers as Programs
+import qualified Clompse.Types as Types
 import Control.Applicative ((<**>), (<|>))
 import Control.Monad (join)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy.Char8 as BLC
+import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
+import qualified Data.Text.Format.Numbers as Fmt.Number
 import qualified Data.Text.IO as TIO
 import qualified Options.Applicative as OA
 import System.Exit (ExitCode (..))
+import qualified Text.Layout.Table as Tab
+import qualified Zamazingo.Text as Z.Text
 
 
 -- * Entrypoint
@@ -41,7 +48,7 @@ cli =
 optProgram :: OA.Parser (IO ExitCode)
 optProgram =
   commandConfig
-    <|> commandList
+    <|> commandServer
     <|> commandVersion
 
 
@@ -94,29 +101,105 @@ doConfigPrint fp = do
     Right cfg -> BLC.putStrLn (Aeson.encode cfg) >> pure ExitSuccess
 
 
--- ** list
+-- ** server
 
 
--- | Definition for @list@ CLI command.
-commandList :: OA.Parser (IO ExitCode)
-commandList = OA.hsubparser (OA.command "list" (OA.info parser infomod) <> OA.metavar "list")
+-- | Definition for @server@ CLI command.
+commandServer :: OA.Parser (IO ExitCode)
+commandServer = OA.hsubparser (OA.command "server" (OA.info parser infomod) <> OA.metavar "server")
+  where
+    infomod = OA.fullDesc <> infoModHeader <> OA.progDesc "Server commands." <> OA.footer "This command provides various server commands."
+    parser =
+      commandServerList
+
+
+-- *** server list
+
+
+-- | Definition for @server list@ CLI command.
+commandServerList :: OA.Parser (IO ExitCode)
+commandServerList = OA.hsubparser (OA.command "list" (OA.info parser infomod) <> OA.metavar "list")
   where
     infomod = OA.fullDesc <> infoModHeader <> OA.progDesc "List servers." <> OA.footer "This command lists servers."
     parser =
-      doList
+      doServerList
         <$> OA.strOption (OA.short 'c' <> OA.long "config" <> OA.metavar "CONFIG" <> OA.help "Configuration file to use.")
+        <*> OA.switch (OA.short 'j' <> OA.long "json" <> OA.help "Format output in JSON.")
 
 
--- | @list@ CLI command program.
-doList :: FilePath -> IO ExitCode
-doList fp = do
+-- | @server list@ CLI command program.
+doServerList :: FilePath -> Bool -> IO ExitCode
+doServerList fp json = do
   eCfg <- readConfigFile fp
   case eCfg of
     Left err -> TIO.putStrLn ("Error reading configuration: " <> err) >> pure (ExitFailure 1)
     Right cfg -> do
       servers <- Programs.listServers cfg
-      BLC.putStrLn (Aeson.encode servers)
+      (if json then doServerListPrintJson else doServerListTabulate) servers
       pure ExitSuccess
+
+
+-- | Prints list server results in JSON format.
+doServerListPrintJson :: [Programs.ListServersResult] -> IO ()
+doServerListPrintJson = BLC.putStrLn . Aeson.encode
+
+
+-- | Prints list server results in tabular format.
+doServerListTabulate :: [Programs.ListServersResult] -> IO ()
+doServerListTabulate rs =
+  let cs =
+        [ Tab.numCol
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        , Tab.numCol
+        , Tab.numCol
+        , Tab.numCol
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        ]
+      hs =
+        Tab.titlesH
+          [ "#"
+          , "Profile"
+          , "Provider"
+          , "Region"
+          , "ID"
+          , "Name"
+          , "State"
+          , "CPU"
+          , "Ram"
+          , "Disk"
+          , "Type"
+          , "Created"
+          ]
+      mkRows i p Types.Server {..} =
+        Tab.rowG . fmap T.unpack $
+          [ formatIntegral i
+          , p
+          , Types.providerCode _serverProvider
+          , _serverRegion
+          , _serverId
+          , fromMaybe "<unknown>" _serverName
+          , Types.stateCode _serverState
+          , maybe "<unknown>" formatIntegral _serverCpu
+          , maybe "<unknown>" formatIntegral _serverRam
+          , maybe "<unknown>" formatIntegral _serverDisk
+          , fromMaybe "<unknown>" _serverType
+          , maybe "<unknown>" Z.Text.tshow _serverCreatedAt
+          ]
+      rows =
+        fmap (\(i, (p, s)) -> mkRows i p s) . zip [1 :: Int ..] $
+          concatMap (\(Programs.ListServersResult p is) -> fmap (p,) is) rs
+   in putStrLn $ Tab.tableString cs Tab.unicodeS hs rows
+
+
+formatIntegral :: Integral a => a -> T.Text
+formatIntegral =
+  Fmt.Number.prettyI (Just ',') . fromIntegral
 
 
 -- ** version

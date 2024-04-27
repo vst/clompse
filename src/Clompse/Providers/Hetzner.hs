@@ -112,7 +112,7 @@ toServer Hetzner.Server {..} =
     , Types._serverState = toServerState serverStatus
     , Types._serverCreatedAt = Just (Time.zonedTimeToUTC serverCreated)
     , Types._serverProvider = Types.ProviderHetzner
-    , Types._serverRegion = Hetzner.datacenterName serverDatacenter
+    , Types._serverRegion = Hetzner.locationName . Hetzner.datacenterLocation $ serverDatacenter
     , Types._serverType = Just (Hetzner.serverTypeDescription serverType)
     }
 
