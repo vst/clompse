@@ -27,6 +27,7 @@ library:
     - autodocodec-schema
     - bytestring
     - conduit
+    - format-numbers
     - githash
     - hetzner
     - ip
@@ -35,12 +36,14 @@ library:
     - optparse-applicative
     - scientific
     - string-interpolate
+    - table-layout
     - template-haskell
     - text
     - time
     - typed-process
     - unordered-containers
     - yaml
+
 executables:
   clompse:
     main: Main.hs

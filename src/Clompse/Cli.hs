@@ -1,4 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 
 -- | This module provides top-level definitions for the CLI program.
@@ -8,14 +10,19 @@ import qualified Autodocodec.Schema as ADC.Schema
 import Clompse.Config (Config, readConfigFile)
 import qualified Clompse.Meta as Meta
 import qualified Clompse.Programs.ListServers as Programs
+import qualified Clompse.Types as Types
 import Control.Applicative ((<**>), (<|>))
 import Control.Monad (join)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy.Char8 as BLC
+import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
+import qualified Data.Text.Format.Numbers as Fmt.Number
 import qualified Data.Text.IO as TIO
 import qualified Options.Applicative as OA
 import System.Exit (ExitCode (..))
+import qualified Text.Layout.Table as Tab
+import qualified Zamazingo.Text as Z.Text
 
 
 -- * Entrypoint
@@ -105,18 +112,82 @@ commandList = OA.hsubparser (OA.command "list" (OA.info parser infomod) <> OA.me
     parser =
       doList
         <$> OA.strOption (OA.short 'c' <> OA.long "config" <> OA.metavar "CONFIG" <> OA.help "Configuration file to use.")
+        <*> OA.switch (OA.short 'j' <> OA.long "json" <> OA.help "Format output in JSON.")
 
 
 -- | @list@ CLI command program.
-doList :: FilePath -> IO ExitCode
-doList fp = do
+doList :: FilePath -> Bool -> IO ExitCode
+doList fp json = do
   eCfg <- readConfigFile fp
   case eCfg of
     Left err -> TIO.putStrLn ("Error reading configuration: " <> err) >> pure (ExitFailure 1)
     Right cfg -> do
       servers <- Programs.listServers cfg
-      BLC.putStrLn (Aeson.encode servers)
+      (if json then doListPrintJson else doListTabulate) servers
       pure ExitSuccess
+
+
+-- | Prints list server results in JSON format.
+doListPrintJson :: [Programs.ListServersResult] -> IO ()
+doListPrintJson = BLC.putStrLn . Aeson.encode
+
+
+-- | Prints list server results in tabular format.
+doListTabulate :: [Programs.ListServersResult] -> IO ()
+doListTabulate rs =
+  let cs =
+        [ Tab.numCol
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        , Tab.numCol
+        , Tab.numCol
+        , Tab.numCol
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        ]
+      hs =
+        Tab.titlesH
+          [ "#"
+          , "Profile"
+          , "Provider"
+          , "Region"
+          , "ID"
+          , "Name"
+          , "State"
+          , "CPU"
+          , "Ram"
+          , "Disk"
+          , "Type"
+          , "Created"
+          ]
+      mkRows i p Types.Server {..} =
+        Tab.rowG . fmap T.unpack $
+          [ formatIntegral i
+          , p
+          , Types.providerCode _serverProvider
+          , _serverRegion
+          , _serverId
+          , fromMaybe "<unknown>" _serverName
+          , Types.stateCode _serverState
+          , maybe "<unknown>" formatIntegral _serverCpu
+          , maybe "<unknown>" formatIntegral _serverRam
+          , maybe "<unknown>" formatIntegral _serverDisk
+          , fromMaybe "<unknown>" _serverType
+          , maybe "<unknown>" Z.Text.tshow _serverCreatedAt
+          ]
+      rows =
+        fmap (\(i, (p, s)) -> mkRows i p s) . zip [1 :: Int ..] $
+          concatMap (\(Programs.ListServersResult p is) -> fmap (p,) is) rs
+   in putStrLn $ Tab.tableString cs Tab.unicodeS hs rows
+
+
+formatIntegral :: Integral a => a -> T.Text
+formatIntegral =
+  Fmt.Number.prettyI (Just ',') . fromIntegral
 
 
 -- ** version
