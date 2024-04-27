@@ -48,7 +48,7 @@ cli =
 optProgram :: OA.Parser (IO ExitCode)
 optProgram =
   commandConfig
-    <|> commandList
+    <|> commandServer
     <|> commandVersion
 
 
@@ -101,40 +101,52 @@ doConfigPrint fp = do
     Right cfg -> BLC.putStrLn (Aeson.encode cfg) >> pure ExitSuccess
 
 
--- ** list
+-- ** server
 
 
--- | Definition for @list@ CLI command.
-commandList :: OA.Parser (IO ExitCode)
-commandList = OA.hsubparser (OA.command "list" (OA.info parser infomod) <> OA.metavar "list")
+-- | Definition for @server@ CLI command.
+commandServer :: OA.Parser (IO ExitCode)
+commandServer = OA.hsubparser (OA.command "server" (OA.info parser infomod) <> OA.metavar "server")
+  where
+    infomod = OA.fullDesc <> infoModHeader <> OA.progDesc "Server commands." <> OA.footer "This command provides various server commands."
+    parser =
+      commandServerList
+
+
+-- *** server list
+
+
+-- | Definition for @server list@ CLI command.
+commandServerList :: OA.Parser (IO ExitCode)
+commandServerList = OA.hsubparser (OA.command "list" (OA.info parser infomod) <> OA.metavar "list")
   where
     infomod = OA.fullDesc <> infoModHeader <> OA.progDesc "List servers." <> OA.footer "This command lists servers."
     parser =
-      doList
+      doServerList
         <$> OA.strOption (OA.short 'c' <> OA.long "config" <> OA.metavar "CONFIG" <> OA.help "Configuration file to use.")
         <*> OA.switch (OA.short 'j' <> OA.long "json" <> OA.help "Format output in JSON.")
 
 
--- | @list@ CLI command program.
-doList :: FilePath -> Bool -> IO ExitCode
-doList fp json = do
+-- | @server list@ CLI command program.
+doServerList :: FilePath -> Bool -> IO ExitCode
+doServerList fp json = do
   eCfg <- readConfigFile fp
   case eCfg of
     Left err -> TIO.putStrLn ("Error reading configuration: " <> err) >> pure (ExitFailure 1)
     Right cfg -> do
       servers <- Programs.listServers cfg
-      (if json then doListPrintJson else doListTabulate) servers
+      (if json then doServerListPrintJson else doServerListTabulate) servers
       pure ExitSuccess
 
 
 -- | Prints list server results in JSON format.
-doListPrintJson :: [Programs.ListServersResult] -> IO ()
-doListPrintJson = BLC.putStrLn . Aeson.encode
+doServerListPrintJson :: [Programs.ListServersResult] -> IO ()
+doServerListPrintJson = BLC.putStrLn . Aeson.encode
 
 
 -- | Prints list server results in tabular format.
-doListTabulate :: [Programs.ListServersResult] -> IO ()
-doListTabulate rs =
+doServerListTabulate :: [Programs.ListServersResult] -> IO ()
+doServerListTabulate rs =
   let cs =
         [ Tab.numCol
         , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
