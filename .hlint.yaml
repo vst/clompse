@@ -33,6 +33,7 @@
         - DeriveGeneric
         - DerivingVia
         - FlexibleContexts
+        - LambdaCase
         - OverloadedRecordDot
         - OverloadedStrings
         - QuasiQuotes

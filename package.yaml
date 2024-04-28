@@ -26,6 +26,7 @@ library:
     - autodocodec
     - autodocodec-schema
     - bytestring
+    - cassava
     - conduit
     - format-numbers
     - githash
@@ -42,6 +43,7 @@ library:
     - time
     - typed-process
     - unordered-containers
+    - vector
     - yaml
 
 executables:
