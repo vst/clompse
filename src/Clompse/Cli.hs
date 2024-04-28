@@ -1,6 +1,6 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 
 -- | This module provides top-level definitions for the CLI program.
@@ -15,6 +15,7 @@ import Control.Applicative ((<**>), (<|>))
 import Control.Monad (join)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy.Char8 as BLC
+import qualified Data.Csv as Cassava
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
 import qualified Data.Text.Format.Numbers as Fmt.Number
@@ -116,6 +117,23 @@ commandServer = OA.hsubparser (OA.command "server" (OA.info parser infomod) <> O
 -- *** server list
 
 
+-- | Output format for @server list@ CLI command.
+data ServerListFormat
+  = ServerListFormatConsole
+  | ServerListFormatCsv
+  | ServerListFormatJson
+  deriving (Eq, Show)
+
+
+-- | Parser for 'ServerListFormat'.
+parseServerListFormat :: OA.ReadM ServerListFormat
+parseServerListFormat = OA.eitherReader $ \case
+  "console" -> Right ServerListFormatConsole
+  "csv" -> Right ServerListFormatCsv
+  "json" -> Right ServerListFormatJson
+  x -> Left ("Unknown format: " <> x)
+
+
 -- | Definition for @server list@ CLI command.
 commandServerList :: OA.Parser (IO ExitCode)
 commandServerList = OA.hsubparser (OA.command "list" (OA.info parser infomod) <> OA.metavar "list")
@@ -124,29 +142,46 @@ commandServerList = OA.hsubparser (OA.command "list" (OA.info parser infomod) <>
     parser =
       doServerList
         <$> OA.strOption (OA.short 'c' <> OA.long "config" <> OA.metavar "CONFIG" <> OA.help "Configuration file to use.")
-        <*> OA.switch (OA.short 'j' <> OA.long "json" <> OA.help "Format output in JSON.")
+        <*> OA.option
+          parseServerListFormat
+          ( OA.short 'f'
+              <> OA.long "format"
+              <> OA.value ServerListFormatConsole
+              <> OA.showDefault
+              <> OA.help "Output format (csv, json or console."
+          )
 
 
 -- | @server list@ CLI command program.
-doServerList :: FilePath -> Bool -> IO ExitCode
-doServerList fp json = do
+doServerList :: FilePath -> ServerListFormat -> IO ExitCode
+doServerList fp fmt = do
   eCfg <- readConfigFile fp
   case eCfg of
     Left err -> TIO.putStrLn ("Error reading configuration: " <> err) >> pure (ExitFailure 1)
     Right cfg -> do
-      servers <- Programs.listServers cfg
-      (if json then doServerListPrintJson else doServerListTabulate) servers
+      servers <- concatMap Programs.toServerList <$> Programs.listServers cfg
+      case fmt of
+        ServerListFormatConsole -> doServerListConsole servers
+        ServerListFormatCsv -> doServerListCsv servers
+        ServerListFormatJson -> doServerListJson servers
       pure ExitSuccess
 
 
 -- | Prints list server results in JSON format.
-doServerListPrintJson :: [Programs.ListServersResult] -> IO ()
-doServerListPrintJson = BLC.putStrLn . Aeson.encode
+doServerListCsv :: Programs.ServerList -> IO ()
+doServerListCsv =
+  BLC.putStrLn . Cassava.encodeDefaultOrderedByName
+
+
+-- | Prints list server results in JSON format.
+doServerListJson :: Programs.ServerList -> IO ()
+doServerListJson =
+  BLC.putStrLn . Aeson.encode
 
 
 -- | Prints list server results in tabular format.
-doServerListTabulate :: [Programs.ListServersResult] -> IO ()
-doServerListTabulate rs =
+doServerListConsole :: Programs.ServerList -> IO ()
+doServerListConsole rs =
   let cs =
         [ Tab.numCol
         , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
@@ -176,24 +211,22 @@ doServerListTabulate rs =
           , "Type"
           , "Created"
           ]
-      mkRows i p Types.Server {..} =
+      mkRows i Programs.ServerListItem {..} =
         Tab.rowG . fmap T.unpack $
           [ formatIntegral i
-          , p
-          , Types.providerCode _serverProvider
-          , _serverRegion
-          , _serverId
-          , fromMaybe "<unknown>" _serverName
-          , Types.stateCode _serverState
-          , maybe "<unknown>" formatIntegral _serverCpu
-          , maybe "<unknown>" formatIntegral _serverRam
-          , maybe "<unknown>" formatIntegral _serverDisk
-          , fromMaybe "<unknown>" _serverType
-          , maybe "<unknown>" Z.Text.tshow _serverCreatedAt
+          , _serverListItemProfile
+          , Types.providerCode _serverListItemProvider
+          , _serverListItemRegion
+          , _serverListItemId
+          , fromMaybe "<unknown>" _serverListItemName
+          , Types.stateCode _serverListItemState
+          , maybe "<unknown>" formatIntegral _serverListItemCpu
+          , maybe "<unknown>" formatIntegral _serverListItemRam
+          , maybe "<unknown>" formatIntegral _serverListItemDisk
+          , fromMaybe "<unknown>" _serverListItemType
+          , maybe "<unknown>" Z.Text.tshow _serverListItemCreatedAt
           ]
-      rows =
-        fmap (\(i, (p, s)) -> mkRows i p s) . zip [1 :: Int ..] $
-          concatMap (\(Programs.ListServersResult p is) -> fmap (p,) is) rs
+      rows = fmap (uncurry mkRows) (zip [1 :: Int ..] rs)
    in putStrLn $ Tab.tableString cs Tab.unicodeS hs rows
 
 
