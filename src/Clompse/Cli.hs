@@ -142,6 +142,7 @@ commandServerList = OA.hsubparser (OA.command "list" (OA.info parser infomod) <>
     parser =
       doServerList
         <$> OA.strOption (OA.short 'c' <> OA.long "config" <> OA.metavar "CONFIG" <> OA.help "Configuration file to use.")
+        <*> OA.option OA.auto (OA.short 't' <> OA.long "threads" <> OA.value 4 <> OA.showDefault <> OA.help "Number of threads to run API tasks in.")
         <*> OA.option
           parseServerListFormat
           ( OA.short 'f'
@@ -153,13 +154,13 @@ commandServerList = OA.hsubparser (OA.command "list" (OA.info parser infomod) <>
 
 
 -- | @server list@ CLI command program.
-doServerList :: FilePath -> ServerListFormat -> IO ExitCode
-doServerList fp fmt = do
+doServerList :: FilePath -> Int -> ServerListFormat -> IO ExitCode
+doServerList fp ts fmt = do
   eCfg <- readConfigFile fp
   case eCfg of
     Left err -> TIO.putStrLn ("Error reading configuration: " <> err) >> pure (ExitFailure 1)
     Right cfg -> do
-      servers <- concatMap Programs.toServerList <$> Programs.listServers cfg
+      servers <- concatMap Programs.toServerList <$> Programs.listServers ts cfg
       case fmt of
         ServerListFormatConsole -> doServerListConsole servers
         ServerListFormatCsv -> doServerListCsv servers

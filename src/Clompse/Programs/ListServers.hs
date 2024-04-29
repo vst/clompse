@@ -13,6 +13,7 @@ import qualified Clompse.Providers.Do as Providers.Do
 import qualified Clompse.Providers.Hetzner as Providers.Hetzner
 import Clompse.Types (Server)
 import qualified Clompse.Types as Types
+import qualified Control.Concurrent.Async.Pool as Async
 import Control.Monad.Except (runExceptT)
 import Control.Monad.IO.Class (MonadIO (..))
 import qualified Data.Aeson as Aeson
@@ -48,18 +49,18 @@ instance ADC.HasCodec ListServersResult where
 
 listServers
   :: MonadIO m
-  => Config
+  => Int
+  -> Config
   -> m [ListServersResult]
-listServers Config {..} =
-  mapM listServersForCloudProfile _configCloudProfiles
+listServers ts Config {..} =
+  liftIO . Async.withTaskGroup ts $ \tg -> Async.mapTasks tg (fmap listServersForCloudProfile _configCloudProfiles)
 
 
 listServersForCloudProfile
   :: MonadIO m
   => CloudProfile
   -> m ListServersResult
-listServersForCloudProfile CloudProfile {..} = do
-  _log ("Running Profile: " <> _cloudProfileName)
+listServersForCloudProfile CloudProfile {..} =
   ListServersResult _cloudProfileName . concat <$> mapM listServersForCloudConnection _cloudProfileConnections
 
 
@@ -68,28 +69,24 @@ listServersForCloudConnection
   => CloudConnection
   -> m [Server]
 listServersForCloudConnection (CloudConnectionAws conn) = do
-  _log "  Running AWS EC2..."
   eServersEc2 <- runExceptT (Providers.Aws.awsEc2ListAllInstances conn)
   serversEc2 <- case eServersEc2 of
-    Left e -> _log ("    ERROR: " <> Z.Text.tshow e) >> pure []
+    Left e -> _log ("    ERROR (AWS EC2): " <> Z.Text.tshow e) >> pure []
     Right servers -> pure servers
-  _log "  Running AWS Lightsail..."
   eServersLightsail <- runExceptT (Providers.Aws.awsLightsailListAllInstances conn)
   serversLightsail <- case eServersLightsail of
-    Left e -> _log ("    ERROR: " <> Z.Text.tshow e) >> pure []
+    Left e -> _log ("    ERROR (AWS Lightsail): " <> Z.Text.tshow e) >> pure []
     Right servers -> pure servers
   pure (fmap (uncurry Providers.ec2InstanceToServer) serversEc2 <> fmap (uncurry Providers.lightsailInstanceToServer) serversLightsail)
 listServersForCloudConnection (CloudConnectionDo conn) = do
-  _log "  Running DigitalOcean..."
   eServers <- runExceptT (Providers.Do.doListDroplets conn)
   case eServers of
-    Left e -> _log ("    ERROR: " <> Z.Text.tshow e) >> pure []
+    Left e -> _log ("    ERROR (DO): " <> Z.Text.tshow e) >> pure []
     Right servers -> pure (fmap Providers.Do.toServer servers)
 listServersForCloudConnection (CloudConnectionHetzner conn) = do
-  _log "  Running Hetzner..."
   eServers <- runExceptT (Providers.Hetzner.hetznerListServers conn)
   case eServers of
-    Left e -> _log ("    ERROR: " <> Z.Text.tshow e) >> pure []
+    Left e -> _log ("    ERROR (HETZNER): " <> Z.Text.tshow e) >> pure []
     Right servers -> pure (fmap Providers.Hetzner.toServer servers)
 
 
