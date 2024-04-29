@@ -23,8 +23,9 @@ import qualified Amazonka.Lightsail.Types.Disk as Aws.Lightsail.Types.Disk
 import qualified Autodocodec as ADC
 import qualified Clompse.Types as Types
 import Conduit ((.|))
+import qualified Control.Concurrent.Async.Pool as Async
 import qualified Control.Lens as L
-import Control.Monad.Except (MonadError (throwError))
+import Control.Monad.Except (MonadError (throwError), runExceptT)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import qualified Data.Aeson as Aeson
 import qualified Data.Conduit as C
@@ -125,7 +126,10 @@ awsEc2ListAllInstances
   -> m [(Aws.Region, Aws.Ec2.Instance)]
 awsEc2ListAllInstances cfg = do
   regions <- awsEc2ListAllRegions cfg
-  concat <$> mapM (awsEc2ListAllInstancesForRegion cfg) regions
+  res <- liftIO . Async.withTaskGroup 4 $ \tg -> Async.mapTasks tg (fmap (runExceptT . awsEc2ListAllInstancesForRegion cfg) regions)
+  case concat <$> sequence res of
+    Left e -> throwError e
+    Right x -> pure x
 
 
 awsEc2ListAllInstancesForRegion
@@ -239,7 +243,10 @@ awsLightsailListAllInstances
   -> m [(Aws.Region, Aws.Lightsail.Instance)]
 awsLightsailListAllInstances cfg = do
   regions <- awsLightsailListAllRegions cfg
-  concat <$> mapM (awsLightsailListAllInstancesForRegion cfg) regions
+  res <- liftIO . Async.withTaskGroup 4 $ \tg -> Async.mapTasks tg (fmap (runExceptT . awsLightsailListAllInstancesForRegion cfg) regions)
+  case concat <$> sequence res of
+    Left e -> throwError e
+    Right x -> pure x
 
 
 awsLightsailListAllInstancesForRegion
