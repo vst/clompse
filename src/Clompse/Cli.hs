@@ -23,6 +23,7 @@ import qualified Data.Text.IO as TIO
 import qualified Options.Applicative as OA
 import System.Exit (ExitCode (..))
 import qualified Text.Layout.Table as Tab
+import qualified Zamazingo.Net as Z.Net
 import qualified Zamazingo.Text as Z.Text
 
 
@@ -196,6 +197,7 @@ doServerListConsole rs =
         , Tab.numCol
         , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
         , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
         ]
       hs =
         Tab.titlesH
@@ -211,6 +213,7 @@ doServerListConsole rs =
           , "Disk"
           , "Type"
           , "Created"
+          , "IPv4"
           ]
       mkRows i Programs.ServerListItem {..} =
         Tab.rowG . fmap T.unpack $
@@ -226,6 +229,7 @@ doServerListConsole rs =
           , maybe "<unknown>" formatIntegral _serverListItemDisk
           , fromMaybe "<unknown>" _serverListItemType
           , maybe "<unknown>" Z.Text.tshow _serverListItemCreatedAt
+          , T.intercalate "," (fmap Z.Net.ipv4ToText (_serverListItemIPv4Static <> _serverListItemIPv4Public))
           ]
       rows = fmap (uncurry mkRows) (zip [1 :: Int ..] rs)
    in putStrLn $ Tab.tableString cs Tab.unicodeS hs rows

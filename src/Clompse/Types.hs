@@ -13,6 +13,7 @@ import qualified Data.List.NonEmpty as NE
 import qualified Data.Text as T
 import qualified Data.Time as Time
 import GHC.Generics (Generic)
+import qualified Zamazingo.Net as Z.Net
 
 
 -- $setup
@@ -123,6 +124,7 @@ data Server = Server
   , _serverProvider :: !Provider
   , _serverRegion :: !T.Text
   , _serverType :: !(Maybe T.Text)
+  , _serverIpInfo :: !ServerIpInfo
   }
   deriving (Eq, Generic, Show)
   deriving (Aeson.FromJSON, Aeson.ToJSON) via (ADC.Autodocodec Server)
@@ -145,3 +147,32 @@ instance ADC.HasCodec Server where
             <*> ADC.requiredField "provider" "Cloud provider." ADC..= _serverProvider
             <*> ADC.requiredField "region" "Region." ADC..= _serverRegion
             <*> ADC.optionalField "type" "Server type." ADC..= _serverType
+            <*> ADC.requiredField "ip_info" "Server IP addresses information." ADC..= _serverIpInfo
+
+
+-- | Server IP addresses information.
+data ServerIpInfo = ServerIpInfo
+  { _serverIpInfoStaticIpv4 :: ![Z.Net.IPv4]
+  , _serverIpInfoStaticIpv6 :: ![Z.Net.IPv6]
+  , _serverIpInfoPublicIpv4 :: ![Z.Net.IPv4]
+  , _serverIpInfoPublicIpv6 :: ![Z.Net.IPv6]
+  , _serverIpInfoPrivateIpv4 :: ![Z.Net.IPv4]
+  , _serverIpInfoPrivateIpv6 :: ![Z.Net.IPv6]
+  }
+  deriving (Eq, Generic, Show)
+  deriving (Aeson.FromJSON, Aeson.ToJSON) via (ADC.Autodocodec ServerIpInfo)
+
+
+instance ADC.HasCodec ServerIpInfo where
+  codec =
+    _codec ADC.<?> "Server IP Addresses Information"
+    where
+      _codec =
+        ADC.object "ServerIpInfo" $
+          ServerIpInfo
+            <$> ADC.requiredField "static_ipv4" "Static IPv4 addresses." ADC..= _serverIpInfoStaticIpv4
+            <*> ADC.requiredField "static_ipv6" "Static IPv6 addresses." ADC..= _serverIpInfoStaticIpv6
+            <*> ADC.requiredField "public_ipv4" "Public IPv4 addresses." ADC..= _serverIpInfoPublicIpv4
+            <*> ADC.requiredField "public_ipv6" "Public IPv6 addresses." ADC..= _serverIpInfoPublicIpv6
+            <*> ADC.requiredField "private_ipv4" "Private IPv4 addresses." ADC..= _serverIpInfoPrivateIpv4
+            <*> ADC.requiredField "private_ipv6" "Private IPv6 addresses." ADC..= _serverIpInfoPrivateIpv6

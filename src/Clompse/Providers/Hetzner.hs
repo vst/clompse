@@ -13,12 +13,13 @@ import Control.Monad.IO.Class (MonadIO)
 import qualified Data.Aeson as Aeson
 import Data.Int (Int16, Int32)
 import qualified Data.List as List
-import Data.Maybe (mapMaybe)
+import Data.Maybe (mapMaybe, maybeToList)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.Time as Time
 import GHC.Generics (Generic)
 import qualified Hetzner.Cloud as Hetzner
+import qualified Zamazingo.Net as Z.Net
 import qualified Zamazingo.Text as Z.Text
 
 
@@ -102,7 +103,7 @@ hetznerListServersWithFirewalls conn = do
 
 
 toServer :: Hetzner.Server -> Types.Server
-toServer Hetzner.Server {..} =
+toServer srv@Hetzner.Server {..} =
   Types.Server
     { Types._serverId = toServerId serverID
     , Types._serverName = Just serverName
@@ -114,6 +115,19 @@ toServer Hetzner.Server {..} =
     , Types._serverProvider = Types.ProviderHetzner
     , Types._serverRegion = Hetzner.locationName . Hetzner.datacenterLocation $ serverDatacenter
     , Types._serverType = Just (Hetzner.serverTypeDescription serverType)
+    , Types._serverIpInfo = toServerIpInfo srv
+    }
+
+
+toServerIpInfo :: Hetzner.Server -> Types.ServerIpInfo
+toServerIpInfo Hetzner.Server {..} =
+  Types.ServerIpInfo
+    { _serverIpInfoStaticIpv4 = [] -- TODO: hetzner library does not provide this information.
+    , _serverIpInfoStaticIpv6 = [] -- TODO: hetzner library does not provide this information.
+    , _serverIpInfoPrivateIpv4 = [] -- TODO: hetzner library does not provide this information.
+    , _serverIpInfoPrivateIpv6 = [] -- TODO: hetzner library does not provide this information.
+    , _serverIpInfoPublicIpv4 = maybeToList (Z.Net.MkIPv4 . Hetzner.publicIP <$> Hetzner.publicIPv4 serverPublicNetwork)
+    , _serverIpInfoPublicIpv6 = foldMap (fmap (Z.Net.MkIPv6 . Hetzner.publicIP) . Hetzner.reverseDNS) (Hetzner.publicIPv6 serverPublicNetwork)
     }
 
 

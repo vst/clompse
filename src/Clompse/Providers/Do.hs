@@ -13,6 +13,8 @@ import Control.Monad.IO.Class (MonadIO)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as BL
 import Data.Int (Int16, Int32, Int64)
+import qualified Data.List as List
+import Data.Maybe (fromMaybe)
 import Data.Scientific (Scientific)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
@@ -405,7 +407,7 @@ doListFirewalls conn =
 
 
 toServer :: DoDroplet -> Types.Server
-toServer DoDroplet {..} =
+toServer droplet@DoDroplet {..} =
   Types.Server
     { _serverId = Z.Text.tshow _doDropletId
     , _serverName = Just _doDropletName
@@ -417,7 +419,24 @@ toServer DoDroplet {..} =
     , _serverProvider = Types.ProviderDo
     , _serverRegion = _doRegionSlug _doDropletRegion
     , _serverType = Just _doDropletSizeSlug
+    , _serverIpInfo = toServerIpInfo droplet
     }
+
+
+toServerIpInfo :: DoDroplet -> Types.ServerIpInfo
+toServerIpInfo DoDroplet {..} =
+  let nets4 = fromMaybe [] (_doNetworksV4 _doDropletNetworks)
+      nets6 = fromMaybe [] (_doNetworksV6 _doDropletNetworks)
+      ipv4s = fmap ((,) <$> _doNetworkV4IpAddress <*> _doNetworkV4Type) nets4
+      ipv6s = fmap ((,) <$> _doNetworkV6IpAddress <*> _doNetworkV6Type) nets6
+   in Types.ServerIpInfo
+        { _serverIpInfoStaticIpv4 = [] -- TODO: For now, reserved IP is seen in public IP section below.
+        , _serverIpInfoStaticIpv6 = [] -- No such thing for DO.
+        , _serverIpInfoPublicIpv4 = List.nub [ip | (ip, "public") <- ipv4s]
+        , _serverIpInfoPublicIpv6 = List.nub [ip | (ip, "public") <- ipv6s]
+        , _serverIpInfoPrivateIpv4 = List.nub [ip | (ip, "private") <- ipv4s]
+        , _serverIpInfoPrivateIpv6 = List.nub [ip | (ip, "private") <- ipv6s]
+        }
 
 
 toServerState :: T.Text -> Types.State

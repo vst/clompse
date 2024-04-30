@@ -32,11 +32,12 @@ import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
 import Data.Int (Int16, Int32)
 import qualified Data.List as L
-import Data.Maybe (catMaybes, fromMaybe)
+import Data.Maybe (catMaybes, fromMaybe, mapMaybe, maybeToList)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import GHC.Float (double2Int)
 import GHC.Generics (Generic)
+import qualified Zamazingo.Net as Z.Net
 import qualified Zamazingo.Text as Z.Text
 
 
@@ -283,6 +284,7 @@ ec2InstanceToServer region i@Aws.Ec2.Instance' {..} =
     , Types._serverProvider = Types.ProviderAws
     , Types._serverRegion = Aws.fromRegion region
     , Types._serverType = Just (Aws.Ec2.fromInstanceType instanceType)
+    , Types._serverIpInfo = ec2InstanceToServerIpInfo i
     }
 
 
@@ -298,6 +300,18 @@ ec2InstanceToServerState Aws.Ec2.Types.InstanceState' {..} =
     _ -> Types.StateUnknown
 
 
+ec2InstanceToServerIpInfo :: Aws.Ec2.Instance -> Types.ServerIpInfo
+ec2InstanceToServerIpInfo Aws.Ec2.Instance' {..} =
+  Types.ServerIpInfo
+    { _serverIpInfoStaticIpv4 = [] -- TODO: This is now reported below in public v4 field.
+    , _serverIpInfoStaticIpv6 = [] -- TODO: Is there such thing for AWS EC2?
+    , _serverIpInfoPublicIpv4 = maybeToList (Z.Net.ipv4FromText =<< publicIpAddress)
+    , _serverIpInfoPublicIpv6 = maybeToList (Z.Net.ipv6FromText =<< ipv6Address)
+    , _serverIpInfoPrivateIpv4 = maybeToList (Z.Net.ipv4FromText =<< privateIpAddress)
+    , _serverIpInfoPrivateIpv6 = [] -- There is no such thing for AWS EC2.
+    }
+
+
 awsEc2InstanceName
   :: Aws.Ec2.Instance
   -> Maybe T.Text
@@ -310,7 +324,7 @@ awsEc2InstanceName i =
 
 
 lightsailInstanceToServer :: Aws.Region -> Aws.Lightsail.Instance -> Types.Server
-lightsailInstanceToServer region Aws.Lightsail.Types.Instance' {..} =
+lightsailInstanceToServer region i@Aws.Lightsail.Types.Instance' {..} =
   Types.Server
     { Types._serverId = fromMaybe "<unknown>" arn
     , Types._serverName = name
@@ -322,6 +336,7 @@ lightsailInstanceToServer region Aws.Lightsail.Types.Instance' {..} =
     , Types._serverProvider = Types.ProviderAws
     , Types._serverRegion = Aws.fromRegion region
     , Types._serverType = bundleId
+    , Types._serverIpInfo = lightsailInstanceToServerIpInfo i
     }
 
 
@@ -350,6 +365,21 @@ lightsailInstanceToServerState Aws.Lightsail.Types.InstanceState' {..} =
     Just "shutting-down" -> Types.StateTerminating
     Just "terminated" -> Types.StateTerminated
     _ -> Types.StateUnknown
+
+
+lightsailInstanceToServerIpInfo :: Aws.Lightsail.Instance -> Types.ServerIpInfo
+lightsailInstanceToServerIpInfo Aws.Lightsail.Instance' {..} =
+  let hasStatic = fromMaybe False isStaticIp
+      static4 = if hasStatic then publicIpAddress else Nothing
+      public4 = if hasStatic then Nothing else publicIpAddress
+   in Types.ServerIpInfo
+        { _serverIpInfoStaticIpv4 = maybeToList (Z.Net.ipv4FromText =<< static4)
+        , _serverIpInfoStaticIpv6 = [] -- TODO: Is there such thing for AWS Lightsail?
+        , _serverIpInfoPublicIpv4 = maybeToList (Z.Net.ipv4FromText =<< public4)
+        , _serverIpInfoPublicIpv6 = mapMaybe Z.Net.ipv6FromText (fromMaybe [] ipv6Addresses)
+        , _serverIpInfoPrivateIpv4 = maybeToList (Z.Net.ipv4FromText =<< privateIpAddress)
+        , _serverIpInfoPrivateIpv6 = [] -- TODO: Is there such thing for AWS Lightsail?
+        }
 
 
 -- ** Others

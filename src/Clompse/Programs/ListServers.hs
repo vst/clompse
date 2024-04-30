@@ -11,7 +11,7 @@ import qualified Clompse.Providers.Aws as Providers
 import qualified Clompse.Providers.Aws as Providers.Aws
 import qualified Clompse.Providers.Do as Providers.Do
 import qualified Clompse.Providers.Hetzner as Providers.Hetzner
-import Clompse.Types (Server)
+import Clompse.Types (Server, ServerIpInfo (..))
 import qualified Clompse.Types as Types
 import qualified Control.Concurrent.Async.Pool as Async
 import Control.Monad.Except (runExceptT)
@@ -25,6 +25,7 @@ import qualified Data.Time as Time
 import qualified Data.Vector as V
 import GHC.Generics (Generic)
 import qualified System.IO
+import qualified Zamazingo.Net as Z.Net
 import qualified Zamazingo.Text as Z.Text
 
 
@@ -110,6 +111,12 @@ data ServerListItem = ServerListItem
   , _serverListItemDisk :: !(Maybe Int32)
   , _serverListItemType :: !(Maybe T.Text)
   , _serverListItemCreatedAt :: !(Maybe Time.UTCTime)
+  , _serverListItemIPv4Static :: ![Z.Net.IPv4]
+  , _serverListItemIPv4Public :: ![Z.Net.IPv4]
+  , _serverListItemIPv4Private :: ![Z.Net.IPv4]
+  , _serverListItemIPv6Static :: ![Z.Net.IPv6]
+  , _serverListItemIPv6Public :: ![Z.Net.IPv6]
+  , _serverListItemIPv6Private :: ![Z.Net.IPv6]
   }
   deriving (Eq, Generic, Show)
   deriving (Aeson.FromJSON, Aeson.ToJSON) via (ADC.Autodocodec ServerListItem)
@@ -133,23 +140,37 @@ instance ADC.HasCodec ServerListItem where
             <*> ADC.optionalField "disk" "Disk of the server." ADC..= _serverListItemDisk
             <*> ADC.optionalField "type" "Type of the server." ADC..= _serverListItemType
             <*> ADC.optionalField "created_at" "Creation time of the server." ADC..= _serverListItemCreatedAt
+            <*> ADC.requiredField "ipv4_static" "Static IPv4 addresses." ADC..= _serverListItemIPv4Static
+            <*> ADC.requiredField "ipv4_public" "Public IPv4 addresses." ADC..= _serverListItemIPv4Public
+            <*> ADC.requiredField "ipv4_private" "Private IPv4 addresses." ADC..= _serverListItemIPv4Private
+            <*> ADC.requiredField "ipv6_static" "Ptatic IPv6 addresses." ADC..= _serverListItemIPv6Static
+            <*> ADC.requiredField "ipv6_public" "Public IPv6 addresses." ADC..= _serverListItemIPv6Public
+            <*> ADC.requiredField "ipv6_private" "Private IPv6 addresses." ADC..= _serverListItemIPv6Private
 
 
 instance Cassava.ToNamedRecord ServerListItem where
   toNamedRecord ServerListItem {..} =
-    Cassava.namedRecord
-      [ "profile" Cassava..= _serverListItemProfile
-      , "provider" Cassava..= Types.providerCode _serverListItemProvider
-      , "region" Cassava..= _serverListItemRegion
-      , "id" Cassava..= _serverListItemId
-      , "name" Cassava..= _serverListItemName
-      , "state" Cassava..= Types.stateCode _serverListItemState
-      , "cpu" Cassava..= _serverListItemCpu
-      , "ram" Cassava..= _serverListItemRam
-      , "disk" Cassava..= _serverListItemDisk
-      , "type" Cassava..= _serverListItemType
-      , "created_at" Cassava..= fmap Z.Text.tshow _serverListItemCreatedAt
-      ]
+    let reportIp4s = filterMaybe (not . T.null) . T.intercalate "," . fmap Z.Net.ipv4ToText
+        reportIp6s = filterMaybe (not . T.null) . T.intercalate "," . fmap Z.Net.ipv6ToText
+     in Cassava.namedRecord
+          [ "profile" Cassava..= _serverListItemProfile
+          , "provider" Cassava..= Types.providerCode _serverListItemProvider
+          , "region" Cassava..= _serverListItemRegion
+          , "id" Cassava..= _serverListItemId
+          , "name" Cassava..= _serverListItemName
+          , "state" Cassava..= Types.stateCode _serverListItemState
+          , "cpu" Cassava..= _serverListItemCpu
+          , "ram" Cassava..= _serverListItemRam
+          , "disk" Cassava..= _serverListItemDisk
+          , "type" Cassava..= _serverListItemType
+          , "created_at" Cassava..= fmap Z.Text.tshow _serverListItemCreatedAt
+          , "ipv4_static" Cassava..= reportIp4s _serverListItemIPv4Static
+          , "ipv4_public" Cassava..= reportIp4s _serverListItemIPv4Public
+          , "ipv4_private" Cassava..= reportIp4s _serverListItemIPv4Private
+          , "ipv6_static" Cassava..= reportIp6s _serverListItemIPv6Static
+          , "ipv6_public" Cassava..= reportIp6s _serverListItemIPv6Public
+          , "ipv6_private" Cassava..= reportIp6s _serverListItemIPv6Private
+          ]
 
 
 instance Cassava.DefaultOrdered ServerListItem where
@@ -166,6 +187,12 @@ instance Cassava.DefaultOrdered ServerListItem where
       , "disk"
       , "type"
       , "created_at"
+      , "ipv4_static"
+      , "ipv4_public"
+      , "ipv4_private"
+      , "ipv6_static"
+      , "ipv6_public"
+      , "ipv6_private"
       ]
 
 
@@ -186,4 +213,16 @@ toServerList ListServersResult {..} =
         , _serverListItemDisk = _serverDisk
         , _serverListItemType = _serverType
         , _serverListItemCreatedAt = _serverCreatedAt
+        , _serverListItemIPv4Static = _serverIpInfoStaticIpv4 _serverIpInfo
+        , _serverListItemIPv4Public = _serverIpInfoPublicIpv4 _serverIpInfo
+        , _serverListItemIPv4Private = _serverIpInfoPrivateIpv4 _serverIpInfo
+        , _serverListItemIPv6Static = _serverIpInfoStaticIpv6 _serverIpInfo
+        , _serverListItemIPv6Public = _serverIpInfoPublicIpv6 _serverIpInfo
+        , _serverListItemIPv6Private = _serverIpInfoPrivateIpv6 _serverIpInfo
         }
+
+
+filterMaybe :: (a -> Bool) -> a -> Maybe a
+filterMaybe p a
+  | p a = Just a
+  | otherwise = Nothing
