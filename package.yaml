@@ -1,5 +1,5 @@
 name: clompse
-version: 0.0.1
+version: 0.0.2
 github: vst/clompse
 license: MIT
 author: Vehbi Sinan Tunalioglu
@@ -46,7 +46,6 @@ library:
     - unordered-containers
     - vector
     - yaml
-
 executables:
   clompse:
     main: Main.hs

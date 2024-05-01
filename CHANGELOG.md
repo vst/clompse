@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.0.2](https://github.com/vst/clompse/compare/v0.0.1...v0.0.2) (2024-04-30)
+
+
+### Features
+
+* add CSV format to server list output options ([2bc355c](https://github.com/vst/clompse/commit/2bc355c2af51dc6d6684284f9c8010f5346ddf56))
+* make server list output information in JSON and tabular format ([050fd60](https://github.com/vst/clompse/commit/050fd603f8695ec9924f222e40e39b9eae71d8fc))
+* report various IPv4/6 information for servers ([590cd72](https://github.com/vst/clompse/commit/590cd72df06417ee3f3979f26e1e135f4c48d136))
+* run AWS EC2/Lightsail API calls in parallel using a thread pool ([23735d2](https://github.com/vst/clompse/commit/23735d237f9322281d79e6a889803afdf16dbc46))
+* run profiles in parallel using a thread pool ([2557d27](https://github.com/vst/clompse/commit/2557d27f3b0fe6c5f050df5b17d1f89300862888))
+
+
+### Bug Fixes
+
+* use DC location name instead of DC name for Hetzner ([e8b56b8](https://github.com/vst/clompse/commit/e8b56b8122f54690b963e680ddb873563fc40d97))
+
 ## 0.0.1 (2024-04-26)
 
 
