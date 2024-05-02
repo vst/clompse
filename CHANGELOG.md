@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.3](https://github.com/vst/clompse/compare/v0.0.2...v0.0.3) (2024-05-02)
+
+
+### Bug Fixes
+
+* **deps:** upgrade table-layout to v1.0.0.0 ([5d2cb91](https://github.com/vst/clompse/commit/5d2cb912f0c6165a86c6a42c9fc4c7bd19de68e5))
+
 ## [0.0.2](https://github.com/vst/clompse/compare/v0.0.1...v0.0.2) (2024-04-30)
 
 
