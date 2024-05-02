@@ -61,6 +61,7 @@ let
     overrides = self: super: {
       bytehash = pkgs.haskell.lib.dontCheck super.bytehash;
       hetzner = self.hetzner_0_6_0_0;
+      table-layout = self.callCabal2nixWithOptions "table-layout" sources.table-layout "--no-check" { };
     };
   };
 

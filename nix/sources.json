@@ -10,5 +10,12 @@
         "type": "tarball",
         "url": "https://github.com/NixOS/nixpkgs/archive/8468b0786c4f5a4e5eab5a4921b75a0139b0474d.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
+    },
+    "table-layout": {
+        "sha256": "0vbz8lmjzxz9flpnzjfhis85ck3q6zfn6xa1ms8j5gcgh1bfjilr",
+        "type": "tarball",
+        "url": "https://hackage.haskell.org/package/table-layout-1.0.0.0/table-layout-1.0.0.0.tar.gz",
+        "url_template": "https://hackage.haskell.org/package/table-layout-<version>/table-layout-<version>.tar.gz",
+        "version": "1.0.0.0"
     }
 }

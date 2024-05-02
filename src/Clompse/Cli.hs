@@ -201,7 +201,7 @@ doServerListConsole rs =
         ]
       hs =
         Tab.titlesH
-          [ "#"
+          [ "#" :: String
           , "Profile"
           , "Provider"
           , "Region"
@@ -232,7 +232,8 @@ doServerListConsole rs =
           , T.intercalate "," (fmap Z.Net.ipv4ToText (_serverListItemIPv4Static <> _serverListItemIPv4Public))
           ]
       rows = fmap (uncurry mkRows) (zip [1 :: Int ..] rs)
-   in putStrLn $ Tab.tableString cs Tab.unicodeS hs rows
+      table = Tab.columnHeaderTableS cs Tab.unicodeS hs rows
+   in putStrLn $ Tab.tableString table
 
 
 formatIntegral :: Integral a => a -> T.Text
