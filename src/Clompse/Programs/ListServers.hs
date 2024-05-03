@@ -78,7 +78,7 @@ listServersForCloudConnection (CloudConnectionAws conn) = do
   serversLightsail <- case eServersLightsail of
     Left e -> _log ("    ERROR (AWS Lightsail): " <> Z.Text.tshow e) >> pure []
     Right servers -> pure servers
-  pure (fmap (uncurry Providers.ec2InstanceToServer) serversEc2 <> fmap (uncurry Providers.lightsailInstanceToServer) serversLightsail)
+  pure (fmap Providers.ec2InstanceToServer serversEc2 <> fmap (uncurry Providers.lightsailInstanceToServer) serversLightsail)
 listServersForCloudConnection (CloudConnectionDo conn) = do
   eServers <- runExceptT (Providers.Do.doListDroplets conn)
   case eServers of
