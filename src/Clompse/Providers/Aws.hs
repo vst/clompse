@@ -13,9 +13,10 @@ import qualified Amazonka.Auth as Aws.Auth
 import qualified Amazonka.Data as Aws.Data
 import qualified Amazonka.Data.Time as Aws.Data.Time
 import qualified Amazonka.EC2 as Aws.Ec2
+import qualified Amazonka.EC2.DescribeInstanceTypes as Aws.Ec2.DescribeInstanceTypes
 import qualified Amazonka.EC2.Lens as Aws.Ec2.Lens
 import qualified Amazonka.EC2.Types as Aws.Ec2.Types
-import qualified Amazonka.EC2.Types.CpuOptions as Aws.Ec2.Types.CpuOptions
+import qualified Amazonka.EC2.Types.InstanceTypeInfo as Aws.Ec2.Types.InstanceTypeInfo
 import qualified Amazonka.Lightsail as Aws.Lightsail
 import qualified Amazonka.Lightsail.Lens as Aws.Lightsail.Lens
 import qualified Amazonka.Lightsail.Types as Aws.Lightsail.Types
@@ -25,14 +26,16 @@ import qualified Clompse.Types as Types
 import Conduit ((.|))
 import qualified Control.Concurrent.Async.Pool as Async
 import qualified Control.Lens as L
+import Control.Monad (join)
 import Control.Monad.Except (MonadError (throwError), runExceptT)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import qualified Data.Aeson as Aeson
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
+import qualified Data.HashMap.Strict as HM
 import Data.Int (Int16, Int32)
 import qualified Data.List as L
-import Data.Maybe (catMaybes, fromMaybe, mapMaybe, maybeToList)
+import Data.Maybe (fromMaybe, mapMaybe, maybeToList)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import GHC.Float (double2Int)
@@ -120,11 +123,17 @@ _ec2RegionInfoToRegion i =
 -- *** Instances
 
 
+type Ec2InstanceList = [Ec2InstanceListItem]
+
+
+type Ec2InstanceListItem = (Aws.Region, Aws.Ec2.Instance, Maybe Int, Maybe Integer, Maybe Integer)
+
+
 awsEc2ListAllInstances
   :: MonadIO m
   => MonadError AwsError m
   => AwsConnection
-  -> m [(Aws.Region, Aws.Ec2.Instance)]
+  -> m Ec2InstanceList
 awsEc2ListAllInstances cfg = do
   regions <- awsEc2ListAllRegions cfg
   res <- liftIO . Async.withTaskGroup 4 $ \tg -> Async.mapTasks tg (fmap (runExceptT . awsEc2ListAllInstancesForRegion cfg) regions)
@@ -138,7 +147,7 @@ awsEc2ListAllInstancesForRegion
   => MonadError AwsError m
   => AwsConnection
   -> Aws.Region
-  -> m [(Aws.Region, Aws.Ec2.Instance)]
+  -> m Ec2InstanceList
 awsEc2ListAllInstancesForRegion cfg reg = do
   env <- (\x -> x {Aws.region = reg}) <$> _envFromConnection cfg
   let prog =
@@ -146,7 +155,43 @@ awsEc2ListAllInstancesForRegion cfg reg = do
           .| CL.concatMap (L.view $ Aws.Ec2.Lens.describeInstancesResponse_reservations . L._Just)
           .| CL.concatMap (L.view $ Aws.Ec2.Lens.reservation_instances . L._Just)
           .| CL.consume
-  fmap (fmap (reg,)) . liftIO . Aws.runResourceT . C.runConduit $ prog
+  resIs <- liftIO . Aws.runResourceT . C.runConduit $ prog
+  let instanceTypes = fmap (L.view Aws.Ec2.Lens.instance_instanceType) resIs
+  resTs <- awsEc2InstanceTypeHw cfg reg instanceTypes
+  pure $ fmap (mkItem resTs) resIs
+  where
+    mkItem resTs i = do
+      let it = i L.^. Aws.Ec2.Lens.instance_instanceType
+      case HM.lookup it resTs of
+        Nothing -> (reg, i, Nothing, Nothing, Nothing)
+        Just (cpu, ram, disk) -> (reg, i, cpu, ram, disk)
+
+
+awsEc2InstanceTypeHw
+  :: MonadIO m
+  => MonadError AwsError m
+  => AwsConnection
+  -> Aws.Region
+  -> [Aws.Ec2.InstanceType]
+  -> m (HM.HashMap Aws.Ec2.InstanceType (Maybe Int, Maybe Integer, Maybe Integer))
+awsEc2InstanceTypeHw cfg reg its = do
+  env <- (\x -> x {Aws.region = reg}) <$> _envFromConnection cfg
+  let prog =
+        Aws.paginate env (Aws.Ec2.newDescribeInstanceTypes L.& Aws.Ec2.DescribeInstanceTypes.describeInstanceTypes_instanceTypes L.?~ its)
+          .| CL.concatMap (L.view $ Aws.Ec2.Lens.describeInstanceTypesResponse_instanceTypes . L._Just)
+          .| CL.consume
+  resTs <- liftIO . Aws.runResourceT . C.runConduit $ prog
+  pure $ HM.fromList (mapMaybe mkRes resTs)
+  where
+    mkRes :: Aws.Ec2.InstanceTypeInfo -> Maybe (Aws.Ec2.InstanceType, (Maybe Int, Maybe Integer, Maybe Integer))
+    mkRes i@Aws.Ec2.Types.InstanceTypeInfo.InstanceTypeInfo' {..} =
+      case instanceType of
+        Nothing -> Nothing
+        Just it ->
+          let cpu = join $ i L.^? Aws.Ec2.Lens.instanceTypeInfo_vCpuInfo L.^? L._Just . L._Just . Aws.Ec2.Lens.vCpuInfo_defaultVCpus
+              ram = join $ i L.^? Aws.Ec2.Lens.instanceTypeInfo_memoryInfo L.^? L._Just . L._Just . Aws.Ec2.Lens.memoryInfo_sizeInMiB
+              disk = join $ i L.^? Aws.Ec2.Lens.instanceTypeInfo_instanceStorageInfo L.^? L._Just . L._Just . Aws.Ec2.Lens.instanceStorageInfo_totalSizeInGB
+           in Just (it, (cpu, ram, disk))
 
 
 -- *** Security Groups
@@ -177,23 +222,21 @@ awsEc2ListAllSecurityGroupsForRegion cfg reg = do
   liftIO . Aws.runResourceT . C.runConduit $ prog
 
 
--- *** Instances with Security Groups
+-- -- *** Instances with Security Groups
 
-
-awsEc2ListAllInstancesWithSecurityGroups
-  :: MonadIO m
-  => MonadError AwsError m
-  => AwsConnection
-  -> m [(Aws.Region, Aws.Ec2.Instance, [Aws.Ec2.SecurityGroup])]
-awsEc2ListAllInstancesWithSecurityGroups cfg = do
-  instancesWithRegions <- awsEc2ListAllInstances cfg
-  securityGroups <- awsEc2ListAllSecurityGroups cfg
-  pure (fmap (\(r, i) -> (r, i, findSecurityGroups securityGroups i)) instancesWithRegions)
-  where
-    findSecurityGroups sgs i =
-      let sids = catMaybes $ foldMap (fmap (L.^. Aws.Ec2.Lens.groupIdentifier_groupId)) (i L.^. Aws.Ec2.Lens.instance_securityGroups)
-       in concatMap (\gi -> filter (\sg -> sg L.^. Aws.Ec2.Lens.securityGroup_groupId == gi) sgs) sids
-
+-- awsEc2ListAllInstancesWithSecurityGroups
+--   :: MonadIO m
+--   => MonadError AwsError m
+--   => AwsConnection
+--   -> m [(Aws.Region, Aws.Ec2.Instance, [Aws.Ec2.SecurityGroup])]
+-- awsEc2ListAllInstancesWithSecurityGroups cfg = do
+--   instancesWithRegions <- awsEc2ListAllInstances cfg
+--   securityGroups <- awsEc2ListAllSecurityGroups cfg
+--   pure (fmap (\(r, i) -> (r, i, findSecurityGroups securityGroups i)) instancesWithRegions)
+--   where
+--     findSecurityGroups sgs i =
+--       let sids = catMaybes $ foldMap (fmap (L.^. Aws.Ec2.Lens.groupIdentifier_groupId)) (i L.^. Aws.Ec2.Lens.instance_securityGroups)
+--        in concatMap (\gi -> filter (\sg -> sg L.^. Aws.Ec2.Lens.securityGroup_groupId == gi) sgs) sids
 
 -- ** AWS Lightsail
 
@@ -271,14 +314,14 @@ awsLightsailListAllInstancesForRegion cfg reg = do
 -- ** EC2
 
 
-ec2InstanceToServer :: Aws.Region -> Aws.Ec2.Instance -> Types.Server
-ec2InstanceToServer region i@Aws.Ec2.Instance' {..} =
+ec2InstanceToServer :: (Aws.Region, Aws.Ec2.Instance, Maybe Int, Maybe Integer, Maybe Integer) -> Types.Server
+ec2InstanceToServer (region, i@Aws.Ec2.Instance' {..}, mCpu, mRam, mDisks) =
   Types.Server
     { Types._serverId = instanceId
     , Types._serverName = awsEc2InstanceName i
-    , Types._serverCpu = fromIntegral <$> (Aws.Ec2.Types.CpuOptions.coreCount =<< cpuOptions)
-    , Types._serverRam = Nothing
-    , Types._serverDisk = Nothing
+    , Types._serverCpu = fromIntegral <$> mCpu
+    , Types._serverRam = fromIntegral <$> mRam
+    , Types._serverDisk = fromIntegral <$> mDisks
     , Types._serverState = ec2InstanceToServerState state
     , Types._serverCreatedAt = Just (Aws.Data.Time.fromTime launchTime)
     , Types._serverProvider = Types.ProviderAws
