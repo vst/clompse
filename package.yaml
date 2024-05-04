@@ -23,6 +23,7 @@ library:
     - amazonka-core
     - amazonka-ec2
     - amazonka-lightsail
+    - amazonka-s3
     - async-pool
     - autodocodec
     - autodocodec-schema

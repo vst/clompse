@@ -176,3 +176,24 @@ instance ADC.HasCodec ServerIpInfo where
             <*> ADC.requiredField "public_ipv6" "Public IPv6 addresses." ADC..= _serverIpInfoPublicIpv6
             <*> ADC.requiredField "private_ipv4" "Private IPv4 addresses." ADC..= _serverIpInfoPrivateIpv4
             <*> ADC.requiredField "private_ipv6" "Private IPv6 addresses." ADC..= _serverIpInfoPrivateIpv6
+
+
+data ObjectBucket = ObjectBucket
+  { _objectBucketName :: !T.Text
+  , _objectBucketProvider :: !Provider
+  , _objectBucketCreatedAt :: !(Maybe Time.UTCTime)
+  }
+  deriving (Eq, Generic, Show)
+  deriving (Aeson.FromJSON, Aeson.ToJSON) via (ADC.Autodocodec ObjectBucket)
+
+
+instance ADC.HasCodec ObjectBucket where
+  codec =
+    _codec ADC.<?> "Object Bucket"
+    where
+      _codec =
+        ADC.object "ObjectBucket" $
+          ObjectBucket
+            <$> ADC.requiredField "name" "Bucket name." ADC..= _objectBucketName
+            <*> ADC.requiredField "provider" "Cloud provider." ADC..= _objectBucketProvider
+            <*> ADC.optionalField "created_at" "Creation timestamp." ADC..= _objectBucketCreatedAt
