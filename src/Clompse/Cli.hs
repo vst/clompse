@@ -9,6 +9,7 @@ module Clompse.Cli where
 import qualified Autodocodec.Schema as ADC.Schema
 import Clompse.Config (Config, readConfigFile)
 import qualified Clompse.Meta as Meta
+import qualified Clompse.Programs.ListObjectBuckets as Programs
 import qualified Clompse.Programs.ListServers as Programs
 import qualified Clompse.Types as Types
 import Control.Applicative ((<**>), (<|>))
@@ -51,6 +52,7 @@ optProgram :: OA.Parser (IO ExitCode)
 optProgram =
   commandConfig
     <|> commandServer
+    <|> commandStorage
     <|> commandVersion
 
 
@@ -239,6 +241,90 @@ doServerListConsole rs =
 formatIntegral :: Integral a => a -> T.Text
 formatIntegral =
   Fmt.Number.prettyI (Just ',') . fromIntegral
+
+
+-- ** storage
+
+
+-- | Definition for @storage@ CLI command.
+commandStorage :: OA.Parser (IO ExitCode)
+commandStorage = OA.hsubparser (OA.command "storage" (OA.info parser infomod) <> OA.metavar "storage")
+  where
+    infomod = OA.fullDesc <> infoModHeader <> OA.progDesc "Storage commands." <> OA.footer "This command provides various storage commands."
+    parser =
+      commandStorageObjectBucketList
+
+
+-- *** storage object-bucket-list
+
+
+-- | Definition for @storage object-bucket-list@ CLI command.
+commandStorageObjectBucketList :: OA.Parser (IO ExitCode)
+commandStorageObjectBucketList = OA.hsubparser (OA.command "object-bucket-list" (OA.info parser infomod) <> OA.metavar "object-bucket-list")
+  where
+    infomod = OA.fullDesc <> infoModHeader <> OA.progDesc "List object buckets." <> OA.footer "This command lists object buckets."
+    parser =
+      doStorageObjectBucketList
+        <$> OA.strOption (OA.short 'c' <> OA.long "config" <> OA.metavar "CONFIG" <> OA.help "Configuration file to use.")
+        <*> OA.option OA.auto (OA.short 't' <> OA.long "threads" <> OA.value 4 <> OA.showDefault <> OA.help "Number of threads to run API tasks in.")
+        <*> OA.option parseServerListFormat (OA.short 'f' <> OA.long "format" <> OA.value ServerListFormatConsole <> OA.showDefault <> OA.help "Output format (csv, json or console.")
+
+
+doStorageObjectBucketList :: FilePath -> Int -> ServerListFormat -> IO ExitCode
+doStorageObjectBucketList fp ts fmt = do
+  eCfg <- readConfigFile fp
+  case eCfg of
+    Left err -> TIO.putStrLn ("Error reading configuration: " <> err) >> pure (ExitFailure 1)
+    Right cfg -> do
+      buckets <- concatMap Programs.toObjectBucketList <$> Programs.listObjectBuckets ts cfg
+      case fmt of
+        ServerListFormatConsole -> doObjectBucketListConsole buckets
+        ServerListFormatCsv -> doObjectBucketListCsv buckets
+        ServerListFormatJson -> doObjectBucketListJson buckets
+      pure ExitSuccess
+
+
+doObjectBucketListConsole :: Programs.ObjectBucketList -> IO ()
+doObjectBucketListConsole rs =
+  let cs =
+        [ Tab.numCol
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        ]
+      hs =
+        Tab.titlesH
+          [ "#" :: String
+          , "Profile"
+          , "Provider"
+          , "Product"
+          , "Name"
+          , "Created"
+          ]
+      mkRows i Programs.ObjectBucketListItem {..} =
+        Tab.rowG . fmap T.unpack $
+          [ formatIntegral i
+          , _objectBucketListItemProfile
+          , Types.providerCode _objectBucketListItemProvider
+          , _objectBucketListItemProduct
+          , _objectBucketListItemName
+          , maybe "<unknown>" Z.Text.tshow _objectBucketListItemCreatedAt
+          ]
+      rows = fmap (uncurry mkRows) (zip [1 :: Int ..] rs)
+      table = Tab.columnHeaderTableS cs Tab.unicodeS hs rows
+   in putStrLn $ Tab.tableString table
+
+
+doObjectBucketListCsv :: Programs.ObjectBucketList -> IO ()
+doObjectBucketListCsv =
+  BLC.putStrLn . Cassava.encodeDefaultOrderedByName
+
+
+doObjectBucketListJson :: Programs.ObjectBucketList -> IO ()
+doObjectBucketListJson =
+  BLC.putStrLn . Aeson.encode
 
 
 -- ** version

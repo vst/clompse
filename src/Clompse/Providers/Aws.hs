@@ -21,6 +21,8 @@ import qualified Amazonka.Lightsail as Aws.Lightsail
 import qualified Amazonka.Lightsail.Lens as Aws.Lightsail.Lens
 import qualified Amazonka.Lightsail.Types as Aws.Lightsail.Types
 import qualified Amazonka.Lightsail.Types.Disk as Aws.Lightsail.Types.Disk
+import qualified Amazonka.S3 as Aws.S3
+import qualified Amazonka.S3.Lens as Aws.S3.Lens
 import qualified Autodocodec as ADC
 import qualified Clompse.Types as Types
 import Conduit ((.|))
@@ -38,6 +40,7 @@ import qualified Data.List as L
 import Data.Maybe (fromMaybe, mapMaybe, maybeToList)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
+import qualified Data.Time as Time
 import GHC.Float (double2Int)
 import GHC.Generics (Generic)
 import qualified Zamazingo.Net as Z.Net
@@ -238,6 +241,26 @@ awsEc2ListAllSecurityGroupsForRegion cfg reg = do
 --       let sids = catMaybes $ foldMap (fmap (L.^. Aws.Ec2.Lens.groupIdentifier_groupId)) (i L.^. Aws.Ec2.Lens.instance_securityGroups)
 --        in concatMap (\gi -> filter (\sg -> sg L.^. Aws.Ec2.Lens.securityGroup_groupId == gi) sgs) sids
 
+-- *** S3 Buckets
+
+
+awsListAllS3Buckets
+  :: MonadIO m
+  => MonadError AwsError m
+  => AwsConnection
+  -> m [(T.Text, Time.UTCTime)]
+awsListAllS3Buckets cfg = do
+  env <- _envFromConnection cfg
+  let prog = Aws.send env Aws.S3.newListBuckets
+  resIs <- liftIO . fmap (fromMaybe [] . L.view Aws.S3.Lens.listBucketsResponse_buckets) . Aws.runResourceT $ prog
+  pure $ fmap mkTuple resIs
+  where
+    mkTuple b =
+      let name = b L.^. Aws.S3.Lens.bucket_name . Aws.S3._BucketName
+          time = b L.^. Aws.S3.Lens.bucket_creationDate
+       in (name, time)
+
+
 -- ** AWS Lightsail
 
 
@@ -306,6 +329,47 @@ awsLightsailListAllInstancesForRegion cfg reg = do
           .| CL.concatMap (L.view $ Aws.Lightsail.Lens.getInstancesResponse_instances . L._Just)
           .| CL.consume
   fmap (fmap (reg,)) . liftIO . Aws.runResourceT . C.runConduit $ prog
+
+
+-- *** Buckets
+
+
+awsListAllLightsailBuckets
+  :: MonadIO m
+  => MonadError AwsError m
+  => AwsConnection
+  -> m [(T.Text, Time.UTCTime)]
+awsListAllLightsailBuckets cfg = do
+  regions <- awsLightsailListAllRegions cfg
+  res <- liftIO . Async.withTaskGroup 4 $ \tg -> Async.mapTasks tg (fmap (runExceptT . awsListAllLightsailBucketsForRegion cfg) regions)
+  case concat <$> sequence res of
+    Left e -> throwError e
+    Right x -> pure x
+
+
+awsListAllLightsailBucketsForRegion
+  :: MonadIO m
+  => MonadError AwsError m
+  => AwsConnection
+  -> Aws.Region
+  -> m [(T.Text, Time.UTCTime)]
+awsListAllLightsailBucketsForRegion cfg reg = do
+  env <- (\x -> x {Aws.region = reg}) <$> _envFromConnection cfg
+  let prog = Aws.send env Aws.Lightsail.newGetBuckets
+  resIs <- liftIO . Aws.runResourceT $ prog
+  -- NOTE: Amazonka does not support pagination over Lightsail buckets.
+  -- let prog =
+  --       Aws.paginate env Aws.Lightsail.newGetBuckets
+  --         .| CL.concatMap (L.view $ Aws.Lightsail.Lens.getBucketsResponse_buckets . L._Just)
+  --         .| CL.consume
+  -- resIs <- liftIO . Aws.runResourceT . C.runConduit $ prog
+  let buckets = fromMaybe [] $ resIs L.^. Aws.Lightsail.Lens.getBucketsResponse_buckets
+  pure $ mapMaybe mkTuple buckets
+  where
+    mkTuple b =
+      let name = b L.^. Aws.Lightsail.Lens.bucket_name
+          time = b L.^. Aws.Lightsail.Lens.bucket_createdAt
+       in (,) <$> name <*> time
 
 
 -- * Helpers
