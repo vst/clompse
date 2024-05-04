@@ -20,6 +20,8 @@ cloud_profiles:
       - type: "do"
         value:
           token: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+          spaces_access_key_id: "AKIAIOSFODNN7EXAMPLE"
+          spaces_secret_access_key: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
       - type: "hetzner"
         value:
           token: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"

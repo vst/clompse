@@ -19,6 +19,14 @@
                     "value": {
                       "$comment": "DigitalOcean connection details\nDigitalOcean Connection\nDigitalOceanConnection",
                       "properties": {
+                        "spaces_access_key_id": {
+                          "$comment": "DigitalOcean Spaces access key identifier.",
+                          "type": "string"
+                        },
+                        "spaces_secret_access_key": {
+                          "$comment": "DigitalOcean Spaces secret access key.",
+                          "type": "string"
+                        },
                         "token": {
                           "$comment": "DigitalOcean API token.",
                           "type": "string"
