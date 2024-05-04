@@ -6,10 +6,15 @@
 
 module Clompse.Providers.Do where
 
+import qualified Amazonka as Aws
+import qualified Amazonka.Auth as Aws.Auth
+import qualified Amazonka.S3 as Aws.S3
+import qualified Amazonka.S3.Lens as Aws.S3.Lens
 import qualified Autodocodec as ADC
 import qualified Clompse.Types as Types
+import qualified Control.Lens as L
 import Control.Monad.Except (MonadError (throwError))
-import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as BL
 import Data.Int (Int16, Int32, Int64)
@@ -17,6 +22,7 @@ import qualified Data.List as List
 import Data.Maybe (fromMaybe)
 import Data.Scientific (Scientific)
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TLE
 import qualified Data.Time as Time
@@ -30,8 +36,10 @@ import qualified Zamazingo.Text as Z.Text
 -- * Connection
 
 
-newtype DoConnection = DoConnection
-  { _doConnectionToken :: T.Text
+data DoConnection = DoConnection
+  { _doConnectionToken :: !T.Text
+  , _doConnectionSpacesAccessKeyId :: !(Maybe T.Text)
+  , _doConnectionSpacesSecretAccessKey :: !(Maybe T.Text)
   }
   deriving (Eq, Generic, Show)
   deriving (Aeson.FromJSON, Aeson.ToJSON) via (ADC.Autodocodec DoConnection)
@@ -45,6 +53,8 @@ instance ADC.HasCodec DoConnection where
         ADC.object "DigitalOceanConnection" $
           DoConnection
             <$> ADC.requiredField "token" "DigitalOcean API token." ADC..= _doConnectionToken
+            <*> ADC.optionalField "spaces_access_key_id" "DigitalOcean Spaces access key identifier." ADC..= _doConnectionSpacesAccessKeyId
+            <*> ADC.optionalField "spaces_secret_access_key" "DigitalOcean Spaces secret access key." ADC..= _doConnectionSpacesSecretAccessKey
 
 
 -- * Error
@@ -119,8 +129,8 @@ instance ADC.HasCodec DoDroplet where
 data DoRegion = DoRegion
   { _doRegionSlug :: !T.Text
   , _doRegionName :: !T.Text
-  , _doRegionSizes :: ![T.Text]
-  , _doRegionAvailable :: !Bool
+  , _doRegionSizes :: !(Maybe [T.Text])
+  , _doRegionAvailable :: !(Maybe Bool)
   , _doRegionFeatures :: ![T.Text]
   }
   deriving (Eq, Generic, Show)
@@ -136,8 +146,8 @@ instance ADC.HasCodec DoRegion where
           DoRegion
             <$> ADC.requiredField "slug" "Region slug." ADC..= _doRegionSlug
             <*> ADC.requiredField "name" "Region name." ADC..= _doRegionName
-            <*> ADC.requiredField "sizes" "Region sizes." ADC..= _doRegionSizes
-            <*> ADC.requiredField "available" "Region availability." ADC..= _doRegionAvailable
+            <*> ADC.optionalField "sizes" "Region sizes." ADC..= _doRegionSizes
+            <*> ADC.optionalField "available" "Region availability." ADC..= _doRegionAvailable
             <*> ADC.requiredField "features" "Region features." ADC..= _doRegionFeatures
 
 
@@ -401,6 +411,85 @@ doListFirewalls
   -> m [DoFirewall]
 doListFirewalls conn =
   doctl conn ["compute", "firewall", "list"]
+
+
+-- ** List Regions
+
+
+doListRegions
+  :: MonadIO m
+  => MonadError DoError m
+  => DoConnection
+  -> m [DoRegion]
+doListRegions conn =
+  doctl conn ["compute", "region", "list"]
+
+
+-- ** List Spaces Buckets
+
+
+doListSpacesBuckets
+  :: MonadIO m
+  => MonadError DoError m
+  => DoConnection
+  -> m [(T.Text, Time.UTCTime)]
+doListSpacesBuckets conn = do
+  let accessKeyId = _doConnectionSpacesAccessKeyId conn
+  let secretAccessKey = _doConnectionSpacesSecretAccessKey conn
+  case (accessKeyId, secretAccessKey) of
+    (Just sa, Just ss) -> do
+      regions <- filter isAvail <$> doListRegions conn
+      List.concat <$> traverse (doListSpacesBucketsForRegion conn sa ss) regions
+    _ -> pure []
+  where
+    avail = ["nyc3", "ams3", "sfo2", "sfo3", "sgp1", "fra1", "blr1", "syd1"]
+    isAvail = (`List.elem` avail) . _doRegionSlug
+
+
+doListSpacesBucketsForRegion
+  :: MonadIO m
+  => MonadError DoError m
+  => DoConnection
+  -> T.Text
+  -> T.Text
+  -> DoRegion
+  -> m [(T.Text, Time.UTCTime)]
+doListSpacesBucketsForRegion _conn accessKeyId secretAccessKey region = do
+  env <- _envFromConnection accessKeyId secretAccessKey (_doRegionSlug region)
+  let prog = Aws.send env Aws.S3.newListBuckets
+  resIs <- liftIO . fmap (fromMaybe [] . L.view Aws.S3.Lens.listBucketsResponse_buckets) . Aws.runResourceT $ prog
+  pure $ fmap mkTuple resIs
+  where
+    mkTuple b =
+      let name = b L.^. Aws.S3.Lens.bucket_name . Aws.S3._BucketName
+          time = b L.^. Aws.S3.Lens.bucket_creationDate
+       in (name, time)
+
+
+_envFromConnection
+  :: MonadIO m
+  => T.Text
+  -> T.Text
+  -> T.Text
+  -> m Aws.Env
+_envFromConnection accessKeyId secretAccessKey region =
+  (\x -> x {Aws.overrides = service}) <$> Aws.newEnv (pure . Aws.Auth.fromKeys accessKeyId' secretAccessKey')
+  where
+    service =
+      const $
+        Aws.S3.defaultService
+          { Aws.endpoint =
+              const $
+                Aws.Endpoint
+                  { host = TE.encodeUtf8 (region <> ".digitaloceanspaces.com")
+                  , basePath = mempty
+                  , secure = True
+                  , port = 443
+                  , scope = TE.encodeUtf8 region
+                  }
+          }
+    accessKeyId' = Aws.AccessKey (TE.encodeUtf8 accessKeyId)
+    secretAccessKey' = Aws.SecretKey (TE.encodeUtf8 secretAccessKey)
 
 
 -- * Helpers

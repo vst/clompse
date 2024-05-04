@@ -8,6 +8,7 @@ module Clompse.Programs.ListObjectBuckets where
 import qualified Autodocodec as ADC
 import Clompse.Config (CloudConnection (..), CloudProfile (..), Config (..))
 import qualified Clompse.Providers.Aws as Providers.Aws
+import qualified Clompse.Providers.Do as Providers.Do
 import qualified Clompse.Types as Types
 import qualified Control.Concurrent.Async.Pool as Async
 import Control.Monad.Except (runExceptT)
@@ -74,7 +75,10 @@ listObjectBucketsForCloudConnection (CloudConnectionAws conn) = do
     Right buckets -> pure (fmap (\(n, c) -> Types.ObjectBucket n Types.ProviderAws "Lightsail" (Just c)) buckets)
   pure $ bucketsS3 <> bucketsLightsail
 listObjectBucketsForCloudConnection (CloudConnectionDo _conn) = do
-  pure []
+  eBucketSpaces <- runExceptT (Providers.Do.doListSpacesBuckets _conn)
+  case eBucketSpaces of
+    Left e -> _log ("    ERROR (DO Spaces): " <> Z.Text.tshow e) >> pure []
+    Right buckets -> pure (fmap (\(n, c) -> Types.ObjectBucket n Types.ProviderDo "Spaces" (Just c)) buckets)
 listObjectBucketsForCloudConnection (CloudConnectionHetzner _conn) = do
   pure []
 
