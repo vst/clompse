@@ -331,6 +331,47 @@ awsLightsailListAllInstancesForRegion cfg reg = do
   fmap (fmap (reg,)) . liftIO . Aws.runResourceT . C.runConduit $ prog
 
 
+-- *** Buckets
+
+
+awsListAllLightsailBuckets
+  :: MonadIO m
+  => MonadError AwsError m
+  => AwsConnection
+  -> m [(T.Text, Time.UTCTime)]
+awsListAllLightsailBuckets cfg = do
+  regions <- awsLightsailListAllRegions cfg
+  res <- liftIO . Async.withTaskGroup 4 $ \tg -> Async.mapTasks tg (fmap (runExceptT . awsListAllLightsailBucketsForRegion cfg) regions)
+  case concat <$> sequence res of
+    Left e -> throwError e
+    Right x -> pure x
+
+
+awsListAllLightsailBucketsForRegion
+  :: MonadIO m
+  => MonadError AwsError m
+  => AwsConnection
+  -> Aws.Region
+  -> m [(T.Text, Time.UTCTime)]
+awsListAllLightsailBucketsForRegion cfg reg = do
+  env <- (\x -> x {Aws.region = reg}) <$> _envFromConnection cfg
+  let prog = Aws.send env Aws.Lightsail.newGetBuckets
+  resIs <- liftIO . Aws.runResourceT $ prog
+  -- NOTE: Amazonka does not support pagination over Lightsail buckets.
+  -- let prog =
+  --       Aws.paginate env Aws.Lightsail.newGetBuckets
+  --         .| CL.concatMap (L.view $ Aws.Lightsail.Lens.getBucketsResponse_buckets . L._Just)
+  --         .| CL.consume
+  -- resIs <- liftIO . Aws.runResourceT . C.runConduit $ prog
+  let buckets = fromMaybe [] $ resIs L.^. Aws.Lightsail.Lens.getBucketsResponse_buckets
+  pure $ mapMaybe mkTuple buckets
+  where
+    mkTuple b =
+      let name = b L.^. Aws.Lightsail.Lens.bucket_name
+          time = b L.^. Aws.Lightsail.Lens.bucket_createdAt
+       in (,) <$> name <*> time
+
+
 -- * Helpers
 
 

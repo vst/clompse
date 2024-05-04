@@ -181,6 +181,7 @@ instance ADC.HasCodec ServerIpInfo where
 data ObjectBucket = ObjectBucket
   { _objectBucketName :: !T.Text
   , _objectBucketProvider :: !Provider
+  , _objectBucketProduct :: !T.Text
   , _objectBucketCreatedAt :: !(Maybe Time.UTCTime)
   }
   deriving (Eq, Generic, Show)
@@ -196,4 +197,5 @@ instance ADC.HasCodec ObjectBucket where
           ObjectBucket
             <$> ADC.requiredField "name" "Bucket name." ADC..= _objectBucketName
             <*> ADC.requiredField "provider" "Cloud provider." ADC..= _objectBucketProvider
+            <*> ADC.requiredField "product" "Product name." ADC..= _objectBucketProduct
             <*> ADC.optionalField "created_at" "Creation timestamp." ADC..= _objectBucketCreatedAt

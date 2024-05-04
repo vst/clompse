@@ -65,9 +65,14 @@ listObjectBucketsForCloudConnection
   -> m [Types.ObjectBucket]
 listObjectBucketsForCloudConnection (CloudConnectionAws conn) = do
   eBucketsS3 <- runExceptT (Providers.Aws.awsListAllS3Buckets conn)
-  case eBucketsS3 of
+  bucketsS3 <- case eBucketsS3 of
     Left e -> _log ("    ERROR (AWS S3): " <> Z.Text.tshow e) >> pure []
-    Right buckets -> pure (fmap (\(n, c) -> Types.ObjectBucket n Types.ProviderAws (Just c)) buckets)
+    Right buckets -> pure (fmap (\(n, c) -> Types.ObjectBucket n Types.ProviderAws "S3" (Just c)) buckets)
+  eBucketsLightsail <- runExceptT (Providers.Aws.awsListAllLightsailBuckets conn)
+  bucketsLightsail <- case eBucketsLightsail of
+    Left e -> _log ("    ERROR (AWS Lightsail): " <> Z.Text.tshow e) >> pure []
+    Right buckets -> pure (fmap (\(n, c) -> Types.ObjectBucket n Types.ProviderAws "Lightsail" (Just c)) buckets)
+  pure $ bucketsS3 <> bucketsLightsail
 listObjectBucketsForCloudConnection (CloudConnectionDo _conn) = do
   pure []
 listObjectBucketsForCloudConnection (CloudConnectionHetzner _conn) = do
@@ -85,6 +90,7 @@ type ObjectBucketList = [ObjectBucketListItem]
 data ObjectBucketListItem = ObjectBucketListItem
   { _objectBucketListItemProfile :: !T.Text
   , _objectBucketListItemProvider :: !Types.Provider
+  , _objectBucketListItemProduct :: !T.Text
   , _objectBucketListItemName :: !T.Text
   , _objectBucketListItemCreatedAt :: !(Maybe Time.UTCTime)
   }
@@ -101,6 +107,7 @@ instance ADC.HasCodec ObjectBucketListItem where
           ObjectBucketListItem
             <$> ADC.requiredField "profile" "Name of the cloud profile." ADC..= _objectBucketListItemProfile
             <*> ADC.requiredField "provider" "Provider of the object bucket." ADC..= _objectBucketListItemProvider
+            <*> ADC.requiredField "product" "Product name." ADC..= _objectBucketListItemProduct
             <*> ADC.requiredField "name" "Name of the object bucket." ADC..= _objectBucketListItemName
             <*> ADC.optionalField "created_at" "Creation time of the object bucket." ADC..= _objectBucketListItemCreatedAt
 
@@ -110,6 +117,7 @@ instance Cassava.ToNamedRecord ObjectBucketListItem where
     Cassava.namedRecord
       [ "profile" Cassava..= _objectBucketListItemProfile
       , "provider" Cassava..= Types.providerCode _objectBucketListItemProvider
+      , "product" Cassava..= _objectBucketListItemProduct
       , "name" Cassava..= _objectBucketListItemName
       , "created_at" Cassava..= fmap Z.Text.tshow _objectBucketListItemCreatedAt
       ]
@@ -120,6 +128,7 @@ instance Cassava.DefaultOrdered ObjectBucketListItem where
     V.fromList
       [ "profile"
       , "provider"
+      , "product"
       , "name"
       , "created_at"
       ]
@@ -133,6 +142,7 @@ toObjectBucketList ListObjectBucketsResult {..} =
       ObjectBucketListItem
         { _objectBucketListItemProfile = p
         , _objectBucketListItemProvider = _objectBucketProvider
+        , _objectBucketListItemProduct = _objectBucketProduct
         , _objectBucketListItemName = _objectBucketName
         , _objectBucketListItemCreatedAt = _objectBucketCreatedAt
         }

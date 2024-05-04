@@ -292,12 +292,14 @@ doObjectBucketListConsole rs =
         , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
         , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
         , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
         ]
       hs =
         Tab.titlesH
           [ "#" :: String
           , "Profile"
           , "Provider"
+          , "Product"
           , "Name"
           , "Created"
           ]
@@ -306,6 +308,7 @@ doObjectBucketListConsole rs =
           [ formatIntegral i
           , _objectBucketListItemProfile
           , Types.providerCode _objectBucketListItemProvider
+          , _objectBucketListItemProduct
           , _objectBucketListItemName
           , maybe "<unknown>" Z.Text.tshow _objectBucketListItemCreatedAt
           ]
