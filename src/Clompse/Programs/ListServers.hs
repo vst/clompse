@@ -85,10 +85,10 @@ listServersForCloudConnection (CloudConnectionDo conn) = do
     Left e -> _log ("    ERROR (DO): " <> Z.Text.tshow e) >> pure []
     Right servers -> pure (fmap Providers.Do.toServer servers)
 listServersForCloudConnection (CloudConnectionHetzner conn) = do
-  eServers <- runExceptT (Providers.Hetzner.hetznerListServers conn)
+  eServers <- runExceptT (Providers.Hetzner.listServers conn)
   case eServers of
     Left e -> _log ("    ERROR (HETZNER): " <> Z.Text.tshow e) >> pure []
-    Right servers -> pure (fmap Providers.Hetzner.toServer servers)
+    Right servers -> pure servers
 
 
 _log :: MonadIO m => T.Text -> m ()
