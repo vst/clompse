@@ -80,10 +80,10 @@ listServersForCloudConnection (CloudConnectionAws conn) = do
     Right servers -> pure servers
   pure (fmap Providers.ec2InstanceToServer serversEc2 <> fmap (uncurry Providers.lightsailInstanceToServer) serversLightsail)
 listServersForCloudConnection (CloudConnectionDo conn) = do
-  eServers <- runExceptT (Providers.Do.doListDroplets conn)
+  eServers <- runExceptT (Providers.Do.listServers conn)
   case eServers of
     Left e -> _log ("    ERROR (DO): " <> Z.Text.tshow e) >> pure []
-    Right servers -> pure (fmap Providers.Do.toServer servers)
+    Right servers -> pure servers
 listServersForCloudConnection (CloudConnectionHetzner conn) = do
   eServers <- runExceptT (Providers.Hetzner.listServers conn)
   case eServers of
