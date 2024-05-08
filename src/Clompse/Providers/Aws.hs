@@ -432,19 +432,24 @@ awsEc2InstanceName i =
 
 lightsailInstanceToServer :: Aws.Region -> Aws.Lightsail.Instance -> Types.Server
 lightsailInstanceToServer region i@Aws.Lightsail.Types.Instance' {..} =
-  Types.Server
-    { Types._serverId = fromMaybe "<unknown>" arn
-    , Types._serverName = name
-    , Types._serverCpu = lightsailInstanceCpu =<< hardware
-    , Types._serverRam = lightsailInstanceRam =<< hardware
-    , Types._serverDisk = lightsailInstanceDisk =<< hardware
-    , Types._serverState = maybe Types.StateUnknown lightsailInstanceToServerState state
-    , Types._serverCreatedAt = Aws.Data.Time.fromTime <$> createdAt
-    , Types._serverProvider = Types.ProviderAws
-    , Types._serverRegion = Aws.fromRegion region
-    , Types._serverType = bundleId
-    , Types._serverIpInfo = lightsailInstanceToServerIpInfo i
-    }
+  let arn' = fromMaybe "<unknown>" arn
+      segments = T.split (== '/') arn'
+      serverId = case segments of
+        [_, x] -> x
+        _ -> arn'
+   in Types.Server
+        { Types._serverId = serverId
+        , Types._serverName = name
+        , Types._serverCpu = lightsailInstanceCpu =<< hardware
+        , Types._serverRam = lightsailInstanceRam =<< hardware
+        , Types._serverDisk = lightsailInstanceDisk =<< hardware
+        , Types._serverState = maybe Types.StateUnknown lightsailInstanceToServerState state
+        , Types._serverCreatedAt = Aws.Data.Time.fromTime <$> createdAt
+        , Types._serverProvider = Types.ProviderAws
+        , Types._serverRegion = Aws.fromRegion region
+        , Types._serverType = bundleId
+        , Types._serverIpInfo = lightsailInstanceToServerIpInfo i
+        }
 
 
 lightsailInstanceCpu :: Aws.Lightsail.Types.InstanceHardware -> Maybe Int16
