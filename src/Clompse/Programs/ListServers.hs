@@ -7,7 +7,6 @@ module Clompse.Programs.ListServers where
 
 import qualified Autodocodec as ADC
 import Clompse.Config (CloudConnection (..), CloudProfile (..), Config (..))
-import qualified Clompse.Providers.Aws as Providers
 import qualified Clompse.Providers.Aws as Providers.Aws
 import qualified Clompse.Providers.Do as Providers.Do
 import qualified Clompse.Providers.Hetzner as Providers.Hetzner
@@ -70,15 +69,15 @@ listServersForCloudConnection
   => CloudConnection
   -> m [Server]
 listServersForCloudConnection (CloudConnectionAws conn) = do
-  eServersEc2 <- runExceptT (Providers.Aws.awsEc2ListAllInstances conn)
+  eServersEc2 <- runExceptT (Providers.Aws.listServersEc2 conn)
   serversEc2 <- case eServersEc2 of
     Left e -> _log ("    ERROR (AWS EC2): " <> Z.Text.tshow e) >> pure []
     Right servers -> pure servers
-  eServersLightsail <- runExceptT (Providers.Aws.awsLightsailListAllInstances conn)
+  eServersLightsail <- runExceptT (Providers.Aws.listServersLightsail conn)
   serversLightsail <- case eServersLightsail of
     Left e -> _log ("    ERROR (AWS Lightsail): " <> Z.Text.tshow e) >> pure []
     Right servers -> pure servers
-  pure (fmap Providers.ec2InstanceToServer serversEc2 <> fmap (uncurry Providers.lightsailInstanceToServer) serversLightsail)
+  pure (serversEc2 <> serversLightsail)
 listServersForCloudConnection (CloudConnectionDo conn) = do
   eServers <- runExceptT (Providers.Do.listServers conn)
   case eServers of
