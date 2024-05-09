@@ -65,11 +65,11 @@ listObjectBucketsForCloudConnection
   => CloudConnection
   -> m [Types.ObjectBucket]
 listObjectBucketsForCloudConnection (CloudConnectionAws conn) = do
-  eBucketsS3 <- runExceptT (Providers.Aws.awsListAllS3Buckets conn)
+  eBucketsS3 <- runExceptT (Providers.Aws.listBucketsS3 conn)
   bucketsS3 <- case eBucketsS3 of
     Left e -> _log ("    ERROR (AWS S3): " <> Z.Text.tshow e) >> pure []
     Right buckets -> pure (fmap (\(n, c) -> Types.ObjectBucket n Types.ProviderAws "s3" (Just c)) buckets)
-  eBucketsLightsail <- runExceptT (Providers.Aws.awsListAllLightsailBuckets conn)
+  eBucketsLightsail <- runExceptT (Providers.Aws.listBucketsLightsail conn)
   bucketsLightsail <- case eBucketsLightsail of
     Left e -> _log ("    ERROR (AWS Lightsail): " <> Z.Text.tshow e) >> pure []
     Right buckets -> pure (fmap (\(n, c) -> Types.ObjectBucket n Types.ProviderAws "lightsail" (Just c)) buckets)
