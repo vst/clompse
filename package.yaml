@@ -19,6 +19,7 @@ library:
     - '-Wunused-packages'
   dependencies:
     - aeson
+    - aeson-combinators
     - amazonka
     - amazonka-core
     - amazonka-ec2

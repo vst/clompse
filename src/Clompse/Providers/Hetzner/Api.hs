@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
 -- | This module provides functions to query remote Hetzner API and
@@ -12,10 +13,13 @@ import Control.Monad.Except (MonadError)
 import Control.Monad.IO.Class (MonadIO)
 import Data.Int
 import qualified Data.List as List
+import qualified Data.List.NonEmpty as NE
 import Data.Maybe (mapMaybe, maybeToList)
 import qualified Data.Text as T
 import qualified Data.Time as Time
 import qualified Hetzner.Cloud as Hetzner
+import qualified Net.IPv4
+import qualified Net.IPv6
 import qualified Zamazingo.Net as Z.Net
 import qualified Zamazingo.Text as Z.Text
 
@@ -30,8 +34,8 @@ listServers
   => MonadError HetznerError m
   => HetznerConnection
   -> m [Types.Server]
-listServers =
-  fmap (fmap toServer) . apiListServers
+listServers = do
+  fmap (fmap toServer) . apiListServersFirewalls
 
 
 -- * Helpers
@@ -90,21 +94,23 @@ apiListServersFirewalls conn = do
 
 
 -- | Converts a given Hetzner server to a Clompse server.
-toServer :: Hetzner.Server -> Types.Server
-toServer srv@Hetzner.Server {..} =
-  Types.Server
-    { Types._serverId = toServerId serverID
-    , Types._serverName = Just serverName
-    , Types._serverCpu = Just (toServerCpu serverType)
-    , Types._serverRam = Just (toServerRam serverType)
-    , Types._serverDisk = Just (toServerDisk serverType)
-    , Types._serverState = toServerState serverStatus
-    , Types._serverCreatedAt = Just (Time.zonedTimeToUTC serverCreated)
-    , Types._serverProvider = Types.ProviderHetzner
-    , Types._serverRegion = Hetzner.locationName . Hetzner.datacenterLocation $ serverDatacenter
-    , Types._serverType = Just (Hetzner.serverTypeDescription serverType)
-    , Types._serverIpInfo = toServerIpInfo srv
-    }
+toServer :: (Hetzner.Server, [Hetzner.Firewall]) -> Types.Server
+toServer (srv@Hetzner.Server {..}, fws) =
+  let
+   in Types.Server
+        { Types._serverId = toServerId serverID
+        , Types._serverName = Just serverName
+        , Types._serverCpu = Just (toServerCpu serverType)
+        , Types._serverRam = Just (toServerRam serverType)
+        , Types._serverDisk = Just (toServerDisk serverType)
+        , Types._serverState = toServerState serverStatus
+        , Types._serverCreatedAt = Just (Time.zonedTimeToUTC serverCreated)
+        , Types._serverProvider = Types.ProviderHetzner
+        , Types._serverRegion = Hetzner.locationName . Hetzner.datacenterLocation $ serverDatacenter
+        , Types._serverType = Just (Hetzner.serverTypeDescription serverType)
+        , Types._serverIpInfo = toServerIpInfo srv
+        , Types._serverFirewalls = fmap toFirewall fws
+        }
 
 
 -- | Extracts the IP information from a given Hetzner server.
@@ -156,3 +162,42 @@ toServerState Hetzner.Deleting = Types.StateTerminating
 toServerState Hetzner.Rebuilding = Types.StateRebuilding
 toServerState Hetzner.Migrating = Types.StateMigrating
 toServerState Hetzner.StatusUnknown = Types.StateUnknown
+
+
+-- | Converts a given Hetzner firewall to a Clompse firewall.
+toFirewall :: Hetzner.Firewall -> Types.Firewall
+toFirewall Hetzner.Firewall {..} =
+  Types.Firewall
+    { _firewallId = Z.Text.tshow (fwId firewallID)
+    , _firewallName = Just firewallName
+    , _firewallRulesInbound = fmap toFirewallRule (filter ((==) Hetzner.TrafficIn . Hetzner.firewallRuleDirection) firewallRules)
+    , _firewallRulesOutbound = fmap toFirewallRule (filter ((==) Hetzner.TrafficOut . Hetzner.firewallRuleDirection) firewallRules)
+    , _firewallCreatedAt = Just (Time.zonedTimeToUTC firewallCreated)
+    }
+  where
+    fwId (Hetzner.FirewallID x) = x
+
+
+-- | Converts a given Hetzner firewall rule to a Clompse firewall
+-- rule.
+toFirewallRule :: Hetzner.FirewallRule -> Types.FirewallRule
+toFirewallRule Hetzner.FirewallRule {..} =
+  Types.FirewallRule
+    { _firewallRuleProtocol = protocol
+    , _firewallRulePorts = ports
+    , _firewallRuleEntities = entities
+    }
+  where
+    protocol = case firewallRuleProtocol of
+      Hetzner.FirewallRuleTCP _ -> "tcp"
+      Hetzner.FirewallRuleUDP _ -> "udp"
+      Hetzner.FirewallRuleICMP -> "icmp"
+      Hetzner.FirewallRuleESP -> "esp"
+      Hetzner.FirewallRuleGRE -> "gre"
+    entities = NE.toList $ fmap (either Net.IPv4.encodeRange Net.IPv6.encodeRange) firewallRuleIPs
+    ports = case firewallRuleProtocol of
+      Hetzner.FirewallRuleTCP (Hetzner.PortRange f t) ->
+        [Types.FirewallRulePorts {_firewallRulePortsFrom = fromIntegral f, _firewallRulePortsTo = fromIntegral t}]
+      Hetzner.FirewallRuleUDP (Hetzner.PortRange f t) ->
+        [Types.FirewallRulePorts {_firewallRulePortsFrom = fromIntegral f, _firewallRulePortsTo = fromIntegral t}]
+      _ -> []

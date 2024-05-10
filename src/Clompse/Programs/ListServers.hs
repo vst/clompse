@@ -116,6 +116,7 @@ data ServerListItem = ServerListItem
   , _serverListItemIPv6Static :: ![Z.Net.IPv6]
   , _serverListItemIPv6Public :: ![Z.Net.IPv6]
   , _serverListItemIPv6Private :: ![Z.Net.IPv6]
+  , _serverListItemFirewalls :: ![Types.Firewall]
   }
   deriving (Eq, Generic, Show)
   deriving (Aeson.FromJSON, Aeson.ToJSON) via (ADC.Autodocodec ServerListItem)
@@ -145,6 +146,7 @@ instance ADC.HasCodec ServerListItem where
             <*> ADC.requiredField "ipv6_static" "Ptatic IPv6 addresses." ADC..= _serverListItemIPv6Static
             <*> ADC.requiredField "ipv6_public" "Public IPv6 addresses." ADC..= _serverListItemIPv6Public
             <*> ADC.requiredField "ipv6_private" "Private IPv6 addresses." ADC..= _serverListItemIPv6Private
+            <*> ADC.requiredField "firewalls" "Firewall configurations." ADC..= _serverListItemFirewalls
 
 
 instance Cassava.ToNamedRecord ServerListItem where
@@ -218,6 +220,7 @@ toServerList ListServersResult {..} =
         , _serverListItemIPv6Static = _serverIpInfoStaticIpv6 _serverIpInfo
         , _serverListItemIPv6Public = _serverIpInfoPublicIpv6 _serverIpInfo
         , _serverListItemIPv6Private = _serverIpInfoPrivateIpv6 _serverIpInfo
+        , _serverListItemFirewalls = _serverFirewalls
         }
 
 
