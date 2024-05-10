@@ -184,10 +184,36 @@ lightsailInstanceToServer region i =
       _serverRegion = Aws.fromRegion region
       _serverType = i L.^. Aws.Lightsail.Lens.instance_bundleId
       _serverIpInfo = lightsailInstanceToServerIpInfo i
+      _serverFirewalls = foldMap (fmap toFirewall) $ i L.^? Aws.Lightsail.Lens.instance_networking . L._Just . Aws.Lightsail.Lens.instanceNetworking_ports . L._Just
    in Types.Server {..}
   where
     _toInt16 :: Int -> Int16
     _toInt16 = fromIntegral
+
+
+toFirewall :: Aws.Lightsail.InstancePortInfo -> Types.Firewall
+toFirewall i =
+  let _firewallId = "#N/A"
+      _firewallName = Nothing
+      _firewallCreatedAt = Nothing
+      _isIn = case i L.^. Aws.Lightsail.Lens.instancePortInfo_accessDirection of
+        Just Aws.Lightsail.AccessDirection_Inbound -> True
+        Just Aws.Lightsail.AccessDirection_Outbound -> False
+        _ -> True
+      rule =
+        Types.FirewallRule
+          { _firewallRuleProtocol = maybe "#N/A" Aws.Data.toText (i L.^. Aws.Lightsail.Lens.instancePortInfo_protocol)
+          , _firewallRulePorts =
+              [ Types.FirewallRulePorts
+                  { _firewallRulePortsFrom = maybe 0 fromIntegral (i L.^. Aws.Lightsail.Lens.instancePortInfo_fromPort)
+                  , _firewallRulePortsTo = maybe 0 fromIntegral (i L.^. Aws.Lightsail.Lens.instancePortInfo_toPort)
+                  }
+              ]
+          , _firewallRuleEntities = fromMaybe [] (i L.^. Aws.Lightsail.Lens.instancePortInfo_cidrs) <> fromMaybe [] (i L.^. Aws.Lightsail.Lens.instancePortInfo_ipv6Cidrs)
+          }
+      _firewallRulesInbound = ([rule | _isIn])
+      _firewallRulesOutbound = ([rule | not _isIn])
+   in Types.Firewall {..}
 
 
 lightsailInstanceToServerState :: Aws.Lightsail.InstanceState -> Types.State

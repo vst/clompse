@@ -125,6 +125,7 @@ data Server = Server
   , _serverRegion :: !T.Text
   , _serverType :: !(Maybe T.Text)
   , _serverIpInfo :: !ServerIpInfo
+  , _serverFirewalls :: ![Firewall]
   }
   deriving (Eq, Generic, Show)
   deriving (Aeson.FromJSON, Aeson.ToJSON) via (ADC.Autodocodec Server)
@@ -148,6 +149,7 @@ instance ADC.HasCodec Server where
             <*> ADC.requiredField "region" "Region." ADC..= _serverRegion
             <*> ADC.optionalField "type" "Server type." ADC..= _serverType
             <*> ADC.requiredField "ip_info" "Server IP addresses information." ADC..= _serverIpInfo
+            <*> ADC.requiredField "firewalls" "Firewall configurations." ADC..= _serverFirewalls
 
 
 -- | Server IP addresses information.
@@ -178,6 +180,7 @@ instance ADC.HasCodec ServerIpInfo where
             <*> ADC.requiredField "private_ipv6" "Private IPv6 addresses." ADC..= _serverIpInfoPrivateIpv6
 
 
+-- | Data definition for object buckets.
 data ObjectBucket = ObjectBucket
   { _objectBucketName :: !T.Text
   , _objectBucketProvider :: !Provider
@@ -199,3 +202,71 @@ instance ADC.HasCodec ObjectBucket where
             <*> ADC.requiredField "provider" "Cloud provider." ADC..= _objectBucketProvider
             <*> ADC.requiredField "product" "Product name." ADC..= _objectBucketProduct
             <*> ADC.optionalField "created_at" "Creation timestamp." ADC..= _objectBucketCreatedAt
+
+
+-- | Data definition for firewall configuration.
+data Firewall = Firewall
+  { _firewallId :: !T.Text
+  , _firewallName :: !(Maybe T.Text)
+  , _firewallRulesInbound :: ![FirewallRule]
+  , _firewallRulesOutbound :: ![FirewallRule]
+  , _firewallCreatedAt :: !(Maybe Time.UTCTime)
+  }
+  deriving (Eq, Generic, Show)
+  deriving (Aeson.FromJSON, Aeson.ToJSON) via (ADC.Autodocodec Firewall)
+
+
+instance ADC.HasCodec Firewall where
+  codec =
+    _codec ADC.<?> "Firewall"
+    where
+      _codec =
+        ADC.object "Firewall" $
+          Firewall
+            <$> ADC.requiredField "id" "Firewall ID." ADC..= _firewallId
+            <*> ADC.optionalField "name" "Firewall name." ADC..= _firewallName
+            <*> ADC.requiredField "rules_inbound" "Inbound rules." ADC..= _firewallRulesInbound
+            <*> ADC.requiredField "rules_outbound" "Outbound rules." ADC..= _firewallRulesOutbound
+            <*> ADC.optionalField "created_at" "Creation timestamp." ADC..= _firewallCreatedAt
+
+
+-- | Data definition for firewall rule.
+data FirewallRule = FirewallRule
+  { _firewallRuleProtocol :: !T.Text
+  , _firewallRulePorts :: ![FirewallRulePorts]
+  , _firewallRuleEntities :: ![T.Text]
+  }
+  deriving (Eq, Generic, Show)
+  deriving (Aeson.FromJSON, Aeson.ToJSON) via (ADC.Autodocodec FirewallRule)
+
+
+instance ADC.HasCodec FirewallRule where
+  codec =
+    _codec ADC.<?> "Firewall Rule"
+    where
+      _codec =
+        ADC.object "FirewallRule" $
+          FirewallRule
+            <$> ADC.requiredField "protocol" "Protocol." ADC..= _firewallRuleProtocol
+            <*> ADC.requiredField "ports" "Ports." ADC..= _firewallRulePorts
+            <*> ADC.requiredField "entities" "Sources or destinations." ADC..= _firewallRuleEntities
+
+
+-- | Data definition for firewall rule ports.
+data FirewallRulePorts = FirewallRulePorts
+  { _firewallRulePortsFrom :: !Int32
+  , _firewallRulePortsTo :: !Int32
+  }
+  deriving (Eq, Generic, Show)
+  deriving (Aeson.FromJSON, Aeson.ToJSON) via (ADC.Autodocodec FirewallRulePorts)
+
+
+instance ADC.HasCodec FirewallRulePorts where
+  codec =
+    _codec ADC.<?> "Firewall Rule Ports"
+    where
+      _codec =
+        ADC.object "FirewallRulePorts" $
+          FirewallRulePorts
+            <$> ADC.requiredField "from" "From port." ADC..= _firewallRulePortsFrom
+            <*> ADC.requiredField "to" "To port." ADC..= _firewallRulePortsTo

@@ -15,11 +15,13 @@ import qualified Amazonka.S3.Lens as Aws.S3.Lens
 import qualified Autodocodec as ADC
 import Clompse.Providers.Do.Connection (DoConnection (..))
 import Clompse.Providers.Do.Error (DoError (..))
+import Clompse.Types (Firewall (_firewallRulesInbound))
 import qualified Clompse.Types as Types
 import qualified Control.Lens as L
 import Control.Monad.Except (MonadError (..))
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Combinators.Decode as ACD
 import Data.Int (Int16, Int32, Int64)
 import qualified Data.List as List
 import Data.Maybe (fromMaybe)
@@ -46,8 +48,14 @@ listServers
   => MonadError DoError m
   => DoConnection
   -> m [Types.Server]
-listServers conn =
-  fmap (fmap toServer) (apiListDroplets conn)
+listServers conn = do
+  droplets <- apiListDroplets conn
+  firewalls <- apiListFirewalls conn
+  let dropletsWithFirewalls = fmap (addFirewalls firewalls) droplets
+  pure $ fmap toServer dropletsWithFirewalls
+  where
+    addFirewalls firewalls droplet@DoDroplet {..} =
+      (droplet, filter (List.elem _doDropletId . _doFirewallDropletIds) firewalls)
 
 
 -- | Lists all DigitalOcean Spaces buckets available in the account
@@ -542,8 +550,8 @@ doctl DoConnection {..} args = do
 
 
 -- | Converts DigitalOcean Droplet to Clompse Server.
-toServer :: DoDroplet -> Types.Server
-toServer droplet@DoDroplet {..} =
+toServer :: (DoDroplet, [DoFirewall]) -> Types.Server
+toServer (droplet@DoDroplet {..}, fws) =
   Types.Server
     { _serverId = Z.Text.tshow _doDropletId
     , _serverName = Just _doDropletName
@@ -556,6 +564,7 @@ toServer droplet@DoDroplet {..} =
     , _serverRegion = _doRegionSlug _doDropletRegion
     , _serverType = Just _doDropletSizeSlug
     , _serverIpInfo = toServerIpInfo droplet
+    , _serverFirewalls = fmap toFirewall fws
     }
 
 
@@ -583,3 +592,42 @@ toServerState "active" = Types.StateRunning
 toServerState "off" = Types.StateStopped
 toServerState "archive" = Types.StateArchived
 toServerState _ = Types.StateUnknown
+
+
+-- | Converts a 'DoFirewall' to a 'Types.Firewall'.
+toFirewall :: DoFirewall -> Types.Firewall
+toFirewall DoFirewall {..} =
+  Types.Firewall
+    { _firewallId = _doFirewallId
+    , _firewallName = Just _doFirewallName
+    , _firewallRulesInbound = fmap toInboundRule _doFirewallInboundRules
+    , _firewallRulesOutbound = fmap toOutboundRule _doFirewallOutboundRules
+    , _firewallCreatedAt = Just _doFirewallCreatedAt
+    }
+
+
+-- | Converts a 'DoFirewallInboundRule' to a 'Types.FirewallRule'.
+toInboundRule :: DoFirewallInboundRule -> Types.FirewallRule
+toInboundRule DoFirewallInboundRule {..} =
+  Types.FirewallRule
+    { _firewallRuleProtocol = _doFirewallInboundRuleProtocol
+    , _firewallRulePorts = [mkFirewallPorts $ fmap (read . T.unpack) (T.split (== '-') _doFirewallInboundRulePorts)]
+    , _firewallRuleEntities = fromMaybe [] $ ACD.parseMaybe (ACD.key "addresses" (ACD.list ACD.text)) _doFirewallInboundRuleSources
+    }
+
+
+-- | Converts a 'DoFirewallOutboundRule' to a 'Types.FirewallRule'.
+toOutboundRule :: DoFirewallOutboundRule -> Types.FirewallRule
+toOutboundRule DoFirewallOutboundRule {..} =
+  Types.FirewallRule
+    { _firewallRuleProtocol = _doFirewallOutboundRuleProtocol
+    , _firewallRulePorts = [mkFirewallPorts $ fmap (read . T.unpack) (T.split (== '-') _doFirewallOutboundRulePorts)]
+    , _firewallRuleEntities = fromMaybe [] $ ACD.parseMaybe (ACD.key "addresses" (ACD.list ACD.text)) _doFirewallOutboundRuleDestinations
+    }
+
+
+-- | Converts a list of integers to a 'Types.FirewallRulePorts'.
+mkFirewallPorts :: [Int] -> Types.FirewallRulePorts
+mkFirewallPorts [p] = Types.FirewallRulePorts (fromIntegral p) (fromIntegral p)
+mkFirewallPorts [p1, p2] = Types.FirewallRulePorts (fromIntegral p1) (fromIntegral p2)
+mkFirewallPorts _ = Types.FirewallRulePorts 0 0

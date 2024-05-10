@@ -28,7 +28,7 @@ import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
 import qualified Data.HashMap.Strict as HM
 import qualified Data.List as List
-import Data.Maybe (fromMaybe, mapMaybe, maybeToList)
+import Data.Maybe (catMaybes, fromMaybe, mapMaybe, maybeToList)
 import qualified Data.Text as T
 import qualified Data.Time as Time
 import qualified Zamazingo.Net as Z.Net
@@ -43,7 +43,7 @@ listServersEc2
   => AwsConnection
   -> m [Types.Server]
 listServersEc2 cfg = do
-  instances <- awsEc2ListAllInstances cfg
+  instances <- awsEc2ListAllInstancesWithSecurityGroups cfg
   pure (fmap ec2InstanceToServer instances)
 
 
@@ -202,19 +202,20 @@ awsEc2ListAllSecurityGroupsForRegion cfg reg = do
 
 -- -- *** Instances with Security Groups
 
--- awsEc2ListAllInstancesWithSecurityGroups
---   :: MonadIO m
---   => MonadError AwsError m
---   => AwsConnection
---   -> m [(Aws.Region, Aws.Ec2.Instance, [Aws.Ec2.SecurityGroup])]
--- awsEc2ListAllInstancesWithSecurityGroups cfg = do
---   instancesWithRegions <- awsEc2ListAllInstances cfg
---   securityGroups <- awsEc2ListAllSecurityGroups cfg
---   pure (fmap (\(r, i) -> (r, i, findSecurityGroups securityGroups i)) instancesWithRegions)
---   where
---     findSecurityGroups sgs i =
---       let sids = catMaybes $ foldMap (fmap (L.^. Aws.Ec2.Lens.groupIdentifier_groupId)) (i L.^. Aws.Ec2.Lens.instance_securityGroups)
---        in concatMap (\gi -> filter (\sg -> sg L.^. Aws.Ec2.Lens.securityGroup_groupId == gi) sgs) sids
+awsEc2ListAllInstancesWithSecurityGroups
+  :: MonadIO m
+  => MonadError AwsError m
+  => AwsConnection
+  -> m [(Aws.Region, Aws.Ec2.Instance, Maybe Int, Maybe Integer, Maybe Integer, [Aws.Ec2.SecurityGroup])]
+awsEc2ListAllInstancesWithSecurityGroups cfg = do
+  instancesWithRegions <- awsEc2ListAllInstances cfg
+  securityGroups <- awsEc2ListAllSecurityGroups cfg
+  pure (fmap (\(r, i, m1, m2, m3) -> (r, i, m1, m2, m3, findSecurityGroups securityGroups i)) instancesWithRegions)
+  where
+    findSecurityGroups sgs i =
+      let sids = catMaybes $ foldMap (fmap (L.^. Aws.Ec2.Lens.groupIdentifier_groupId)) (i L.^. Aws.Ec2.Lens.instance_securityGroups)
+       in concatMap (\gi -> filter (\sg -> sg L.^. Aws.Ec2.Lens.securityGroup_groupId == gi) sgs) sids
+
 
 -- ** S3 Buckets
 
@@ -239,8 +240,8 @@ awsListAllS3Buckets cfg = do
 -- ** Converters
 
 
-ec2InstanceToServer :: (Aws.Region, Aws.Ec2.Instance, Maybe Int, Maybe Integer, Maybe Integer) -> Types.Server
-ec2InstanceToServer (region, i@Aws.Ec2.Instance' {..}, mCpu, mRam, mDisks) =
+ec2InstanceToServer :: (Aws.Region, Aws.Ec2.Instance, Maybe Int, Maybe Integer, Maybe Integer, [Aws.Ec2.SecurityGroup]) -> Types.Server
+ec2InstanceToServer (region, i@Aws.Ec2.Instance' {..}, mCpu, mRam, mDisks, _sgs) =
   Types.Server
     { Types._serverId = instanceId
     , Types._serverName = awsEc2InstanceName i
@@ -253,7 +254,36 @@ ec2InstanceToServer (region, i@Aws.Ec2.Instance' {..}, mCpu, mRam, mDisks) =
     , Types._serverRegion = Aws.fromRegion region
     , Types._serverType = Just (Aws.Ec2.fromInstanceType instanceType)
     , Types._serverIpInfo = ec2InstanceToServerIpInfo i
+    , Types._serverFirewalls = fmap toFirewall _sgs
     }
+
+
+toFirewall :: Aws.Ec2.SecurityGroup -> Types.Firewall
+toFirewall sgs =
+  let fid = sgs L.^. Aws.Ec2.Lens.securityGroup_groupId
+      name = sgs L.^. Aws.Ec2.Lens.securityGroup_groupName
+      inbound = fromMaybe [] $ sgs L.^. Aws.Ec2.Lens.securityGroup_ipPermissions
+      outbound = fromMaybe [] $ sgs L.^. Aws.Ec2.Lens.securityGroup_ipPermissionsEgress
+   in Types.Firewall
+        { _firewallId = fid
+        , _firewallName = Just name
+        , _firewallRulesInbound = fmap toFirewallRule inbound
+        , _firewallRulesOutbound = fmap toFirewallRule outbound
+        , _firewallCreatedAt = Nothing
+        }
+
+
+toFirewallRule :: Aws.Ec2.IpPermission -> Types.FirewallRule
+toFirewallRule ip =
+  let proto = ip L.^. Aws.Ec2.Lens.ipPermission_ipProtocol
+      fromPort = fromIntegral . fromMaybe 0 $ ip L.^. Aws.Ec2.Lens.ipPermission_fromPort
+      toPort = fromIntegral . fromMaybe 0 $ ip L.^. Aws.Ec2.Lens.ipPermission_toPort
+      ips = fromMaybe [] $ ip L.^. Aws.Ec2.Lens.ipPermission_ipRanges
+   in Types.FirewallRule
+        { _firewallRuleProtocol = proto
+        , _firewallRulePorts = [Types.FirewallRulePorts {_firewallRulePortsFrom = fromPort, _firewallRulePortsTo = toPort}]
+        , _firewallRuleEntities = fmap (L.^. Aws.Ec2.Lens.ipRange_cidrIp) ips
+        }
 
 
 ec2InstanceToServerState :: Aws.Ec2.Types.InstanceState -> Types.State
