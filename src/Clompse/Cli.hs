@@ -9,6 +9,7 @@ module Clompse.Cli where
 import qualified Autodocodec.Schema as ADC.Schema
 import Clompse.Config (Config, readConfigFile)
 import qualified Clompse.Meta as Meta
+import qualified Clompse.Programs.ListDomains as Programs
 import qualified Clompse.Programs.ListObjectBuckets as Programs
 import qualified Clompse.Programs.ListServers as Programs
 import qualified Clompse.Types as Types
@@ -53,6 +54,7 @@ optProgram =
   commandConfig
     <|> commandServer
     <|> commandStorage
+    <|> commandDomains
     <|> commandVersion
 
 
@@ -324,6 +326,84 @@ doObjectBucketListCsv =
 
 doObjectBucketListJson :: Programs.ObjectBucketList -> IO ()
 doObjectBucketListJson =
+  BLC.putStrLn . Aeson.encode
+
+
+-- ** domains
+
+
+-- | Definition for @storage@ CLI command.
+commandDomains :: OA.Parser (IO ExitCode)
+commandDomains = OA.hsubparser (OA.command "domains" (OA.info parser infomod) <> OA.metavar "domains")
+  where
+    infomod = OA.fullDesc <> infoModHeader <> OA.progDesc "DNS commands." <> OA.footer "This command provides various DNS commands."
+    parser =
+      commandDomainsList
+
+
+-- *** domains list
+
+
+-- | Definition for @domains list@ CLI command.
+commandDomainsList :: OA.Parser (IO ExitCode)
+commandDomainsList = OA.hsubparser (OA.command "list" (OA.info parser infomod) <> OA.metavar "list")
+  where
+    infomod = OA.fullDesc <> infoModHeader <> OA.progDesc "List domains." <> OA.footer "This command lists domains."
+    parser =
+      doDomainsList
+        <$> OA.strOption (OA.short 'c' <> OA.long "config" <> OA.metavar "CONFIG" <> OA.help "Configuration file to use.")
+        <*> OA.option OA.auto (OA.short 't' <> OA.long "threads" <> OA.value 4 <> OA.showDefault <> OA.help "Number of threads to run API tasks in.")
+        <*> OA.option parseServerListFormat (OA.short 'f' <> OA.long "format" <> OA.value ServerListFormatConsole <> OA.showDefault <> OA.help "Output format (csv, json or console.")
+
+
+doDomainsList :: FilePath -> Int -> ServerListFormat -> IO ExitCode
+doDomainsList fp ts fmt = do
+  eCfg <- readConfigFile fp
+  case eCfg of
+    Left err -> TIO.putStrLn ("Error reading configuration: " <> err) >> pure (ExitFailure 1)
+    Right cfg -> do
+      domains <- concatMap Programs.toDomainsList <$> Programs.listDomains ts cfg
+      case fmt of
+        ServerListFormatConsole -> doDomainsListConsole domains
+        ServerListFormatCsv -> doDomainsListCsv domains
+        ServerListFormatJson -> doDomainsListJson domains
+      pure ExitSuccess
+
+
+doDomainsListConsole :: Programs.DomainsList -> IO ()
+doDomainsListConsole rs =
+  let cs =
+        [ Tab.numCol
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        ]
+      hs =
+        Tab.titlesH
+          [ "#" :: String
+          , "Profile"
+          , "Provider"
+          , "Domain"
+          ]
+      mkRows i Programs.DomainsListItem {..} =
+        Tab.rowG . fmap T.unpack $
+          [ formatIntegral i
+          , _domainsListItemProfile
+          , Types.providerCode _domainsListItemProvider
+          , _domainsListItemDomain
+          ]
+      rows = fmap (uncurry mkRows) (zip [1 :: Int ..] rs)
+      table = Tab.columnHeaderTableS cs Tab.unicodeS hs rows
+   in putStrLn $ Tab.tableString table
+
+
+doDomainsListCsv :: Programs.DomainsList -> IO ()
+doDomainsListCsv =
+  BLC.putStrLn . Cassava.encodeDefaultOrderedByName
+
+
+doDomainsListJson :: Programs.DomainsList -> IO ()
+doDomainsListJson =
   BLC.putStrLn . Aeson.encode
 
 

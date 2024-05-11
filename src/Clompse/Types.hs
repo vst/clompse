@@ -270,3 +270,23 @@ instance ADC.HasCodec FirewallRulePorts where
           FirewallRulePorts
             <$> ADC.requiredField "from" "From port." ADC..= _firewallRulePortsFrom
             <*> ADC.requiredField "to" "To port." ADC..= _firewallRulePortsTo
+
+
+-- | Data definition for domains.
+data Domain = Domain
+  { _domainName :: !T.Text
+  , _domainProvider :: !Provider
+  }
+  deriving (Eq, Generic, Show)
+  deriving (Aeson.FromJSON, Aeson.ToJSON) via (ADC.Autodocodec Domain)
+
+
+instance ADC.HasCodec Domain where
+  codec =
+    _codec ADC.<?> "Domain Name"
+    where
+      _codec =
+        ADC.object "Domain" $
+          Domain
+            <$> ADC.requiredField "name" "Domain name." ADC..= _domainName
+            <*> ADC.requiredField "provider" "Cloud provider." ADC..= _domainProvider

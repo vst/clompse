@@ -4,10 +4,11 @@ module Clompse.Providers.Do (
   DoError (..),
   DoConnection (..),
   listBuckets,
+  listDomains,
   listServers,
 ) where
 
-import Clompse.Providers.Do.Api (listBuckets, listServers)
+import Clompse.Providers.Do.Api (listBuckets, listDomains, listServers)
 import Clompse.Providers.Do.Connection (DoConnection (..))
 import Clompse.Providers.Do.Error (DoError (..))
 

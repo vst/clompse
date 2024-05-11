@@ -77,6 +77,20 @@ listBuckets conn =
         }
 
 
+-- | Lists all domains available in the DigitalOcean account
+-- associated with the given connection.
+listDomains
+  :: MonadIO m
+  => MonadError DoError m
+  => DoConnection
+  -> m [Types.Domain]
+listDomains conn = do
+  vals <- doctl conn ["compute", "domain", "list"]
+  case ACD.parseMaybe (ACD.list (ACD.key "name" ACD.text)) vals of
+    Nothing -> throwError (DoErrorParsing "Failed to parse domain list." (Aeson.encode vals))
+    Just xs -> pure (fmap (\x -> Types.Domain {_domainName = x, _domainProvider = Types.ProviderDo}) xs)
+
+
 -- * Data Definitions
 
 
@@ -517,6 +531,9 @@ awsS3EnvFromConnection accessKeyId secretAccessKey region =
           }
     accessKeyId' = Aws.AccessKey (TE.encodeUtf8 accessKeyId)
     secretAccessKey' = Aws.SecretKey (TE.encodeUtf8 secretAccessKey)
+
+
+-- *** DNS
 
 
 -- *** API Connection
