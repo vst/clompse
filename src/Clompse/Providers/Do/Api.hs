@@ -91,6 +91,18 @@ listDomains conn = do
     Just xs -> pure (fmap (\x -> Types.Domain {_domainName = x, _domainProvider = Types.ProviderDo}) xs)
 
 
+-- | Lists all domain name records available in the DigitalOcean
+-- account associated with the given connection.
+listDomainRecords
+  :: MonadIO m
+  => MonadError DoError m
+  => DoConnection
+  -> m [Types.DnsRecord]
+listDomainRecords conn = do
+  domains <- listDomains conn
+  List.concat <$> traverse (listRecordsForDomain conn . Types._domainName) domains
+
+
 -- * Data Definitions
 
 
@@ -534,6 +546,35 @@ awsS3EnvFromConnection accessKeyId secretAccessKey region =
 
 
 -- *** DNS
+
+
+-- | Lists all domain name records available in the DigitalOcean
+-- account associated with the given connection.
+listRecordsForDomain
+  :: MonadIO m
+  => MonadError DoError m
+  => DoConnection
+  -> T.Text
+  -> m [Types.DnsRecord]
+listRecordsForDomain conn domain = do
+  vals <- doctl conn ["compute", "domain", "records", "list", domain]
+  case ACD.parseMaybe (ACD.list codec) vals of
+    Nothing -> throwError (DoErrorParsing "Failed to parse DNS records." (Aeson.encode vals))
+    Just xs -> pure xs
+  where
+    codec = do
+      let _dnsRecordProvider = Types.ProviderDo
+      let _dnsRecordDomain = domain
+      _dnsRecordId <- fmap Z.Text.tshow <$> ACD.key "id" (ACD.nullable ACD.int64)
+      _dnsRecordType <- ACD.key "type" ACD.text
+      _dnsRecordName <- ACD.key "name" ACD.text
+      _dnsRecordValue <- ACD.key "data" ACD.text
+      _dnsRecordPriority <- ACD.key "priority" ACD.auto
+      _dnsRecordPort <- ACD.key "port" ACD.auto
+      _dnsRecordWeight <- ACD.key "weight" ACD.auto
+      _dnsRecordFlags <- ACD.key "flags" ACD.auto
+      _dnsRecordTtl <- ACD.key "ttl" ACD.auto
+      pure $ Types.DnsRecord {..}
 
 
 -- *** API Connection
