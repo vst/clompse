@@ -290,3 +290,41 @@ instance ADC.HasCodec Domain where
           Domain
             <$> ADC.requiredField "name" "Domain name." ADC..= _domainName
             <*> ADC.requiredField "provider" "Cloud provider." ADC..= _domainProvider
+
+
+-- | Data definition for DNS records.
+data DnsRecord = DnsRecord
+  { _dnsRecordProvider :: !Provider
+  , _dnsRecordDomain :: !T.Text
+  , _dnsRecordId :: !(Maybe T.Text)
+  , _dnsRecordType :: !T.Text
+  , _dnsRecordName :: !T.Text
+  , _dnsRecordValue :: !T.Text
+  , _dnsRecordPriority :: !(Maybe Int32)
+  , _dnsRecordPort :: !(Maybe Int32)
+  , _dnsRecordWeight :: !(Maybe Int32)
+  , _dnsRecordFlags :: !(Maybe Int32)
+  , _dnsRecordTtl :: !Int32
+  }
+  deriving (Eq, Generic, Show)
+  deriving (Aeson.FromJSON, Aeson.ToJSON) via (ADC.Autodocodec DnsRecord)
+
+
+instance ADC.HasCodec DnsRecord where
+  codec =
+    _codec ADC.<?> "DNS Record"
+    where
+      _codec =
+        ADC.object "DnsRecord" $
+          DnsRecord
+            <$> ADC.requiredField "provider" "Cloud provider." ADC..= _dnsRecordProvider
+            <*> ADC.requiredField "domain" "Domain name." ADC..= _dnsRecordDomain
+            <*> ADC.optionalField "id" "Record ID." ADC..= _dnsRecordId
+            <*> ADC.requiredField "type" "Record type." ADC..= _dnsRecordType
+            <*> ADC.requiredField "name" "Record name." ADC..= _dnsRecordName
+            <*> ADC.requiredField "value" "Record value." ADC..= _dnsRecordValue
+            <*> ADC.optionalField "priority" "Record priority." ADC..= _dnsRecordPriority
+            <*> ADC.optionalField "port" "Record port." ADC..= _dnsRecordPort
+            <*> ADC.optionalField "weight" "Record weight." ADC..= _dnsRecordWeight
+            <*> ADC.optionalField "flags" "Record flags." ADC..= _dnsRecordFlags
+            <*> ADC.requiredField "ttl" "Record TTL." ADC..= _dnsRecordTtl

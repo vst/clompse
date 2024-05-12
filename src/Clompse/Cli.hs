@@ -9,6 +9,7 @@ module Clompse.Cli where
 import qualified Autodocodec.Schema as ADC.Schema
 import Clompse.Config (Config, readConfigFile)
 import qualified Clompse.Meta as Meta
+import qualified Clompse.Programs.ListDomainRecords as Programs
 import qualified Clompse.Programs.ListDomains as Programs
 import qualified Clompse.Programs.ListObjectBuckets as Programs
 import qualified Clompse.Programs.ListServers as Programs
@@ -339,6 +340,7 @@ commandDomains = OA.hsubparser (OA.command "domains" (OA.info parser infomod) <>
     infomod = OA.fullDesc <> infoModHeader <> OA.progDesc "DNS commands." <> OA.footer "This command provides various DNS commands."
     parser =
       commandDomainsList
+        <|> commandDomainsRecords
 
 
 -- *** domains list
@@ -404,6 +406,99 @@ doDomainsListCsv =
 
 doDomainsListJson :: Programs.DomainsList -> IO ()
 doDomainsListJson =
+  BLC.putStrLn . Aeson.encode
+
+
+-- *** domains records
+
+
+-- | Definition for @domains records@ CLI command.
+commandDomainsRecords :: OA.Parser (IO ExitCode)
+commandDomainsRecords = OA.hsubparser (OA.command "records" (OA.info parser infomod) <> OA.metavar "records")
+  where
+    infomod = OA.fullDesc <> infoModHeader <> OA.progDesc "List domain records." <> OA.footer "This command lists domain records."
+    parser =
+      doDomainRecordsList
+        <$> OA.strOption (OA.short 'c' <> OA.long "config" <> OA.metavar "CONFIG" <> OA.help "Configuration file to use.")
+        <*> OA.option OA.auto (OA.short 't' <> OA.long "threads" <> OA.value 4 <> OA.showDefault <> OA.help "Number of threads to run API tasks in.")
+        <*> OA.option parseServerListFormat (OA.short 'f' <> OA.long "format" <> OA.value ServerListFormatConsole <> OA.showDefault <> OA.help "Output format (csv, json or console.")
+
+
+doDomainRecordsList :: FilePath -> Int -> ServerListFormat -> IO ExitCode
+doDomainRecordsList fp ts fmt = do
+  eCfg <- readConfigFile fp
+  case eCfg of
+    Left err -> TIO.putStrLn ("Error reading configuration: " <> err) >> pure (ExitFailure 1)
+    Right cfg -> do
+      domains <- concatMap Programs.toDomainRecordsList <$> Programs.listDomainRecords ts cfg
+      case fmt of
+        ServerListFormatConsole -> doDomainRecordsListConsole domains
+        ServerListFormatCsv -> doDomainRecordsListCsv domains
+        ServerListFormatJson -> doDomainRecordsListJson domains
+      pure ExitSuccess
+
+
+doDomainRecordsListConsole :: Programs.DomainRecordsList -> IO ()
+doDomainRecordsListConsole rs =
+  let cs =
+        [ Tab.numCol
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        , Tab.column Tab.expand Tab.left Tab.noAlign Tab.noCutMark
+        , Tab.column (Tab.expandUntil 40) Tab.left Tab.noAlign Tab.ellipsisCutMark
+        , Tab.column (Tab.expandUntil 48) Tab.left Tab.noAlign Tab.ellipsisCutMark
+        , Tab.numCol
+        , Tab.numCol
+        , Tab.numCol
+        , Tab.numCol
+        , Tab.numCol
+        ]
+      hs =
+        Tab.titlesH
+          [ "#" :: String
+          , "Profile"
+          , "Provider"
+          , "Domain"
+          , "Id"
+          , "Type"
+          , "Name"
+          , "Value"
+          , "Pri"
+          , "Port"
+          , "Wgt"
+          , "Flags"
+          , "Ttl"
+          ]
+      mkRows i Programs.DomainRecordsListItem {..} =
+        Tab.rowG . fmap T.unpack $
+          [ formatIntegral i
+          , _domainRecordsListItemProfile
+          , Types.providerCode _domainRecordsListItemProvider
+          , _domainRecordsListItemDomain
+          , fromMaybe "--" _domainRecordsListItemId
+          , _domainRecordsListItemType
+          , _domainRecordsListItemName
+          , _domainRecordsListItemValue
+          , maybe "--" Z.Text.tshow _domainRecordsListItemPriority
+          , maybe "--" Z.Text.tshow _domainRecordsListItemPort
+          , maybe "--" Z.Text.tshow _domainRecordsListItemWeight
+          , maybe "--" Z.Text.tshow _domainRecordsListItemFlags
+          , Z.Text.tshow _domainRecordsListItemTtl
+          ]
+      rows = fmap (uncurry mkRows) (zip [1 :: Int ..] rs)
+      table = Tab.columnHeaderTableS cs Tab.unicodeS hs rows
+   in putStrLn $ Tab.tableString table
+
+
+doDomainRecordsListCsv :: Programs.DomainRecordsList -> IO ()
+doDomainRecordsListCsv =
+  BLC.putStrLn . Cassava.encodeDefaultOrderedByName
+
+
+doDomainRecordsListJson :: Programs.DomainRecordsList -> IO ()
+doDomainRecordsListJson =
   BLC.putStrLn . Aeson.encode
 
 
