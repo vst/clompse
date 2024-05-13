@@ -13,6 +13,8 @@ import qualified Amazonka.EC2 as Aws.Ec2
 import qualified Amazonka.EC2.Lens as Aws.Ec2.Lens
 import qualified Amazonka.EC2.Types as Aws.Ec2.Types
 import qualified Amazonka.EC2.Types as Aws.Ec2.Types.InstanceTypeInfo
+import qualified Amazonka.Route53 as Aws.Route53
+import qualified Amazonka.Route53.Lens as Aws.Route53.Lens
 import qualified Amazonka.S3 as Aws.S3
 import qualified Amazonka.S3.Lens as Aws.S3.Lens
 import Clompse.Providers.Aws.Connection (AwsConnection, _envFromConnection)
@@ -54,6 +56,25 @@ listBucketsS3
   -> m [(T.Text, Time.UTCTime)]
 listBucketsS3 =
   awsListAllS3Buckets
+
+
+listDomainsRoute53
+  :: MonadIO m
+  => MonadError AwsError m
+  => AwsConnection
+  -> m [Types.Domain]
+listDomainsRoute53 cfg = do
+  env <- _envFromConnection cfg
+  let prog = Aws.send env Aws.Route53.newListHostedZones
+  resIs <- liftIO . fmap (L.view Aws.Route53.Lens.listHostedZonesResponse_hostedZones) . Aws.runResourceT $ prog
+  pure $ fmap mkTuple resIs
+  where
+    mkTuple b =
+      let name = b L.^. Aws.Route53.Lens.hostedZone_name
+       in Types.Domain
+            { Types._domainName = name
+            , Types._domainProvider = Types.ProviderAws
+            }
 
 
 -- * Data Definitions
