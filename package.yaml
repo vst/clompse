@@ -24,6 +24,7 @@ library:
     - amazonka-core
     - amazonka-ec2
     - amazonka-lightsail
+    - amazonka-route53
     - amazonka-s3
     - async-pool
     - autodocodec
