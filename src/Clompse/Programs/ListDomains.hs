@@ -64,10 +64,15 @@ listDomainsForCloudConnection
   => CloudConnection
   -> m [Types.Domain]
 listDomainsForCloudConnection (CloudConnectionAws conn) = do
-  eRecords <- runExceptT (Providers.Aws.listDomainsRoute53 conn)
-  case eRecords of
+  eRecordsRoute53 <- runExceptT (Providers.Aws.listDomainsRoute53 conn)
+  recordsRoute53 <- case eRecordsRoute53 of
     Left e -> _log ("    ERROR (AWS Route53 Domains): " <> Z.Text.tshow e) >> pure []
     Right records -> pure records
+  eRecordsRouteLightsail <- runExceptT (Providers.Aws.listDomainsLightsail conn)
+  recordsLightsail <- case eRecordsRouteLightsail of
+    Left e -> _log ("    ERROR (AWS Lightsail Domains): " <> Z.Text.tshow e) >> pure []
+    Right records -> pure records
+  pure (recordsRoute53 <> recordsLightsail)
 listDomainsForCloudConnection (CloudConnectionDo conn) = do
   eRecords <- runExceptT (Providers.Do.listDomains conn)
   case eRecords of

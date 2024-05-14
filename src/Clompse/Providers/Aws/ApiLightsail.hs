@@ -50,6 +50,25 @@ listBucketsLightsail =
   awsListAllLightsailBuckets
 
 
+listDomainsLightsail
+  :: MonadIO m
+  => MonadError AwsError m
+  => AwsConnection
+  -> m [Types.Domain]
+listDomainsLightsail cfg = do
+  env <- _envFromConnection cfg
+  let prog = Aws.send env Aws.Lightsail.newGetDomains
+  resIs <- liftIO . fmap (fromMaybe [] . L.view Aws.Lightsail.Lens.getDomainsResponse_domains) . Aws.runResourceT $ prog
+  pure $ fmap mkTuple resIs
+  where
+    mkTuple b =
+      let name = b L.^. Aws.Lightsail.Lens.domain_name
+       in Types.Domain
+            { Types._domainName = fromMaybe "<unknown-lightsail-domain>" name
+            , Types._domainProvider = Types.ProviderAws
+            }
+
+
 -- * Data Definitions
 
 
