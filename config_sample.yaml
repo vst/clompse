@@ -25,3 +25,7 @@ cloud_profiles:
       - type: "hetzner"
         value:
           token: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      - type: "hetzner"
+        value:
+          token: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+          token_dns: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"

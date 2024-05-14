@@ -9,6 +9,7 @@ import qualified Autodocodec as ADC
 import Clompse.Config (CloudConnection (..), CloudProfile (..), Config (..))
 import qualified Clompse.Providers.Aws as Providers.Aws
 import qualified Clompse.Providers.Do as Providers.Do
+import qualified Clompse.Providers.Hetzner as Providers.Hetzner
 import qualified Clompse.Types as Types
 import qualified Control.Concurrent.Async.Pool as Async
 import Control.Monad.Except (runExceptT)
@@ -78,8 +79,11 @@ listDomainsForCloudConnection (CloudConnectionDo conn) = do
   case eRecords of
     Left e -> _log ("    ERROR (DO Domains): " <> Z.Text.tshow e) >> pure []
     Right records -> pure records
-listDomainsForCloudConnection (CloudConnectionHetzner _conn) = do
-  pure []
+listDomainsForCloudConnection (CloudConnectionHetzner conn) = do
+  eRecords <- runExceptT (Providers.Hetzner.listDomains conn)
+  case eRecords of
+    Left e -> _log ("    ERROR (Hetzner Domains): " <> Z.Text.tshow e) >> pure []
+    Right records -> pure records
 
 
 _log :: MonadIO m => T.Text -> m ()

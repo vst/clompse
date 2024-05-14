@@ -6,7 +6,7 @@
 -- convert responses to Clompse types.
 module Clompse.Providers.Hetzner.Api where
 
-import Clompse.Providers.Hetzner.Connection (HetznerConnection (..), hetznerConnectionToken)
+import Clompse.Providers.Hetzner.Connection (HetznerConnection (..), hetznerConnectionToken, hetznerConnectionTokenDns)
 import Clompse.Providers.Hetzner.Error (HetznerError)
 import qualified Clompse.Types as Types
 import Control.Monad.Except (MonadError)
@@ -18,6 +18,7 @@ import Data.Maybe (mapMaybe, maybeToList)
 import qualified Data.Text as T
 import qualified Data.Time as Time
 import qualified Hetzner.Cloud as Hetzner
+import qualified Hetzner.DNS as Hetzner
 import qualified Net.IPv4
 import qualified Net.IPv6
 import qualified Zamazingo.Net as Z.Net
@@ -36,6 +37,24 @@ listServers
   -> m [Types.Server]
 listServers = do
   fmap (fmap toServer) . apiListServersFirewalls
+
+
+-- | Lists all domains managed in the Hetzner account associated with
+-- the given connection.
+listDomains
+  :: MonadIO m
+  => MonadError HetznerError m
+  => HetznerConnection
+  -> m [Types.Domain]
+listDomains conn = do
+  zones <- maybe (pure []) (Hetzner.streamToList . Hetzner.streamPages . Hetzner.getZones) (hetznerConnectionTokenDns conn)
+  pure $ fmap toDomain zones
+  where
+    toDomain Hetzner.Zone {..} =
+      Types.Domain
+        { _domainName = zoneName
+        , _domainProvider = Types.ProviderHetzner
+        }
 
 
 -- * Helpers

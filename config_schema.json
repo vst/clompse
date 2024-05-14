@@ -50,6 +50,17 @@
                         "token": {
                           "$comment": "Hetzner API token.",
                           "type": "string"
+                        },
+                        "token_dns": {
+                          "$comment": "Hetzner DNS API token.",
+                          "anyOf": [
+                            {
+                              "type": "null"
+                            },
+                            {
+                              "type": "string"
+                            }
+                          ]
                         }
                       },
                       "required": ["token"],
