@@ -7,6 +7,7 @@ module Clompse.Programs.ListDomainRecords where
 
 import qualified Autodocodec as ADC
 import Clompse.Config (CloudConnection (..), CloudProfile (..), Config (..))
+import qualified Clompse.Providers.Aws.ApiAws as Providers.Aws
 import qualified Clompse.Providers.Do as Providers.Do
 import Clompse.Types (DnsRecord (_dnsRecordProvider))
 import qualified Clompse.Types as Types
@@ -64,8 +65,11 @@ listDomainRecordsForCloudConnection
   :: MonadIO m
   => CloudConnection
   -> m [Types.DnsRecord]
-listDomainRecordsForCloudConnection (CloudConnectionAws _conn) = do
-  pure []
+listDomainRecordsForCloudConnection (CloudConnectionAws conn) = do
+  eRecords <- runExceptT (Providers.Aws.listDnsRecordsRoute53 conn)
+  case eRecords of
+    Left e -> _log ("    ERROR (Route53 Domain Records): " <> Z.Text.tshow e) >> pure []
+    Right records -> pure records
 listDomainRecordsForCloudConnection (CloudConnectionDo conn) = do
   eRecords <- runExceptT (Providers.Do.listDomainRecords conn)
   case eRecords of

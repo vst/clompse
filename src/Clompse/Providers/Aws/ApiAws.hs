@@ -30,6 +30,7 @@ import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
 import qualified Data.HashMap.Strict as HM
 import qualified Data.List as List
+import qualified Data.List.NonEmpty as NE
 import Data.Maybe (catMaybes, fromMaybe, mapMaybe, maybeToList)
 import qualified Data.Text as T
 import qualified Data.Time as Time
@@ -64,17 +65,24 @@ listDomainsRoute53
   => AwsConnection
   -> m [Types.Domain]
 listDomainsRoute53 cfg = do
-  env <- _envFromConnection cfg
-  let prog = Aws.send env Aws.Route53.newListHostedZones
-  resIs <- liftIO . fmap (L.view Aws.Route53.Lens.listHostedZonesResponse_hostedZones) . Aws.runResourceT $ prog
-  pure $ fmap mkTuple resIs
+  recs <- route53ListDomains cfg
+  pure $ fmap mkTuple recs
   where
-    mkTuple b =
-      let name = b L.^. Aws.Route53.Lens.hostedZone_name
-       in Types.Domain
-            { Types._domainName = name
-            , Types._domainProvider = Types.ProviderAws
-            }
+    mkTuple (_, name) =
+      Types.Domain
+        { Types._domainName = name
+        , Types._domainProvider = Types.ProviderAws
+        }
+
+
+listDnsRecordsRoute53
+  :: MonadIO m
+  => MonadError AwsError m
+  => AwsConnection
+  -> m [Types.DnsRecord]
+listDnsRecordsRoute53 cfg = do
+  doms <- route53ListDomains cfg
+  concat <$> mapM (route53ListDnsRecords cfg) doms
 
 
 -- * Data Definitions
@@ -257,6 +265,61 @@ awsListAllS3Buckets cfg = do
           time = b L.^. Aws.S3.Lens.bucket_creationDate
        in (name, time)
 
+
+route53ListDomains
+  :: MonadIO m
+  => MonadError AwsError m
+  => AwsConnection
+  -> m [(Aws.Route53.ResourceId, T.Text)]
+route53ListDomains cfg = do
+  env <- _envFromConnection cfg
+  let prog = Aws.send env Aws.Route53.newListHostedZones
+  resIs <- liftIO . fmap (L.view Aws.Route53.Lens.listHostedZonesResponse_hostedZones) . Aws.runResourceT $ prog
+  pure $ fmap mkTuple resIs
+  where
+    mkTuple b =
+      let resId = b L.^. Aws.Route53.Lens.hostedZone_id
+          name = b L.^. Aws.Route53.Lens.hostedZone_name
+       in (resId, name)
+
+
+route53ListDnsRecords
+  :: MonadIO m
+  => MonadError AwsError m
+  => AwsConnection
+  -> (Aws.Route53.ResourceId, T.Text)
+  -> m [Types.DnsRecord]
+route53ListDnsRecords cfg (resId, dmn) = do
+  env <- _envFromConnection cfg
+  let prog =
+        Aws.paginate env (Aws.Route53.newListResourceRecordSets resId)
+          .| CL.concatMap (L.view Aws.Route53.Lens.listResourceRecordSetsResponse_resourceRecordSets)
+          .| CL.consume
+  resIs <- liftIO . Aws.runResourceT . C.runConduit $ prog
+  pure $ fmap mkTuple resIs
+  where
+    mkTuple b =
+      let _dnsRecordId = b L.^. Aws.Route53.Lens.resourceRecordSet_setIdentifier
+          _dnsRecordName = b L.^. Aws.Route53.Lens.resourceRecordSet_name
+          _dnsRecordType = Aws.Route53.fromRRType (b L.^. Aws.Route53.Lens.resourceRecordSet_type)
+          _dnsRecordTtl = maybe 0 fromIntegral $ b L.^. Aws.Route53.Lens.resourceRecordSet_ttl
+          _dnsRecordValue = foldMap (T.intercalate " # " . fmap (L.view Aws.Route53.Lens.resourceRecord_value) . NE.toList) $ b L.^. Aws.Route53.Lens.resourceRecordSet_resourceRecords
+          _dnsRecordPriority = Nothing
+          _dnsRecordPort = Nothing
+          _dnsRecordWeight = fromIntegral <$> b L.^. Aws.Route53.Lens.resourceRecordSet_weight
+          _dnsRecordFlags = Nothing
+       in Types.DnsRecord
+            { _dnsRecordProvider = Types.ProviderAws
+            , _dnsRecordDomain = dmn
+            , ..
+            }
+
+
+-- { Types._dnsRecordName = name
+-- , Types._dnsRecordType = type_
+-- , Types._dnsRecordTtl = ttl
+-- , Types._dnsRecordValues = fmap (L.^. Aws.Route53.Lens.resourceRecord_value) values
+-- }
 
 -- ** Converters
 
