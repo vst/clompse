@@ -8,6 +8,7 @@ module Clompse.Programs.ListDomainRecords where
 import qualified Autodocodec as ADC
 import Clompse.Config (CloudConnection (..), CloudProfile (..), Config (..))
 import qualified Clompse.Providers.Aws.ApiAws as Providers.Aws
+import qualified Clompse.Providers.Aws.ApiLightsail as Providers.Aws
 import qualified Clompse.Providers.Do as Providers.Do
 import Clompse.Types (DnsRecord (_dnsRecordProvider))
 import qualified Clompse.Types as Types
@@ -66,10 +67,15 @@ listDomainRecordsForCloudConnection
   => CloudConnection
   -> m [Types.DnsRecord]
 listDomainRecordsForCloudConnection (CloudConnectionAws conn) = do
-  eRecords <- runExceptT (Providers.Aws.listDnsRecordsRoute53 conn)
-  case eRecords of
+  eRecordsRoute53 <- runExceptT (Providers.Aws.listDnsRecordsRoute53 conn)
+  recordsRoute53 <- case eRecordsRoute53 of
     Left e -> _log ("    ERROR (Route53 Domain Records): " <> Z.Text.tshow e) >> pure []
     Right records -> pure records
+  eRecordsLightsail <- runExceptT (Providers.Aws.listDnsRecordsLightsail conn)
+  recordsLightsail <- case eRecordsLightsail of
+    Left e -> _log ("    ERROR (Lightsail Domain Records): " <> Z.Text.tshow e) >> pure []
+    Right records -> pure records
+  pure (recordsRoute53 <> recordsLightsail)
 listDomainRecordsForCloudConnection (CloudConnectionDo conn) = do
   eRecords <- runExceptT (Providers.Do.listDomainRecords conn)
   case eRecords of

@@ -69,6 +69,53 @@ listDomainsLightsail cfg = do
             }
 
 
+listDnsRecordsLightsail
+  :: MonadIO m
+  => MonadError AwsError m
+  => AwsConnection
+  -> m [Types.DnsRecord]
+listDnsRecordsLightsail cfg = do
+  env <- _envFromConnection cfg
+  let prog = Aws.send env Aws.Lightsail.newGetDomains
+  resIs <- liftIO . fmap (fromMaybe [] . L.view Aws.Lightsail.Lens.getDomainsResponse_domains) . Aws.runResourceT $ prog
+  pure $ concatMap mkEntries resIs
+  where
+    mkEntries b =
+      let name = fromMaybe "<unknown>" (b L.^. Aws.Lightsail.Lens.domain_name)
+          entries = fromMaybe [] (b L.^. Aws.Lightsail.Lens.domain_domainEntries)
+       in fmap (mkEntry name) entries
+    mkEntry name e =
+      let _dnsRecordId = e L.^. Aws.Lightsail.Lens.domainEntry_id
+          _dnsRecordName = fromMaybe "<unknown" (e L.^. Aws.Lightsail.Lens.domainEntry_name)
+          _dnsRecordType = fromMaybe "<unknown" (e L.^. Aws.Lightsail.Lens.domainEntry_type)
+          _dnsRecordTtl = 60 -- Lightsail does not provide TTL management.
+          _dnsRecordValue = fromMaybe "" (e L.^. Aws.Lightsail.Lens.domainEntry_target)
+          _dnsRecordPriority = Nothing
+          _dnsRecordPort = Nothing
+          _dnsRecordWeight = Nothing
+          _dnsRecordFlags = Nothing
+       in Types.DnsRecord
+            { _dnsRecordProvider = Types.ProviderAws
+            , _dnsRecordDomain = name
+            , ..
+            }
+
+
+-- let _dnsRecordId = b L.^. Aws.Route53.Lens.resourceRecordSet_setIdentifier
+--     _dnsRecordName = b L.^. Aws.Route53.Lens.resourceRecordSet_name
+--     _dnsRecordType = Aws.Route53.fromRRType (b L.^. Aws.Route53.Lens.resourceRecordSet_type)
+--     _dnsRecordTtl = maybe 0 fromIntegral $ b L.^. Aws.Route53.Lens.resourceRecordSet_ttl
+--     _dnsRecordValue = foldMap (T.intercalate " # " . fmap (L.view Aws.Route53.Lens.resourceRecord_value) . NE.toList) $ b L.^. Aws.Route53.Lens.resourceRecordSet_resourceRecords
+--     _dnsRecordPriority = Nothing
+--     _dnsRecordPort = Nothing
+--     _dnsRecordWeight = fromIntegral <$> b L.^. Aws.Route53.Lens.resourceRecordSet_weight
+--     _dnsRecordFlags = Nothing
+--  in Types.DnsRecord
+--       { _dnsRecordProvider = Types.ProviderAws
+--       , _dnsRecordDomain = dmn
+--       , ..
+--       }
+
 -- * Data Definitions
 
 
