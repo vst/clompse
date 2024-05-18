@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TupleSections #-}
 
 -- | This module provides functions to query remote Hetzner API and
 -- convert responses to Clompse types.
@@ -10,7 +11,7 @@ import Clompse.Providers.Hetzner.Connection (HetznerConnection (..), hetznerConn
 import Clompse.Providers.Hetzner.Error (HetznerError)
 import qualified Clompse.Types as Types
 import Control.Monad.Except (MonadError)
-import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Int
 import qualified Data.List as List
 import qualified Data.List.NonEmpty as NE
@@ -55,6 +56,34 @@ listDomains conn = do
         { _domainName = zoneName
         , _domainProvider = Types.ProviderHetzner
         }
+
+
+listDnsRecords
+  :: MonadIO m
+  => MonadError HetznerError m
+  => HetznerConnection
+  -> m [Types.DnsRecord]
+listDnsRecords conn = do
+  zones <- maybe (pure []) (Hetzner.streamToList . Hetzner.streamPages . Hetzner.getZones) (hetznerConnectionTokenDns conn)
+  records <- concat <$> traverse (\Hetzner.Zone {..} -> liftIO $ fmap (zoneName,) <$> maybe (pure []) (`Hetzner.getRecords` Just zoneID) (hetznerConnectionTokenDns conn)) zones
+  pure $ fmap toDnsRecord records
+  where
+    toDnsRecord (zoneName, Hetzner.Record {..}) =
+      let (Hetzner.RecordID _dnsRecordId) = recordID
+          _dnsRecordType = Z.Text.tshow recordType
+          _dnsRecordName = recordName
+          _dnsRecordValue = recordValue
+          _dnsRecordPriority = Nothing
+          _dnsRecordPort = Nothing
+          _dnsRecordWeight = Nothing
+          _dnsRecordFlags = Nothing
+          _dnsRecordTtl = fromIntegral recordTTL
+       in Types.DnsRecord
+            { _dnsRecordProvider = Types.ProviderHetzner
+            , _dnsRecordDomain = zoneName
+            , _dnsRecordId = Just _dnsRecordId
+            , ..
+            }
 
 
 -- * Helpers

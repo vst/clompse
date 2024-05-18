@@ -10,6 +10,7 @@ import Clompse.Config (CloudConnection (..), CloudProfile (..), Config (..))
 import qualified Clompse.Providers.Aws.ApiAws as Providers.Aws
 import qualified Clompse.Providers.Aws.ApiLightsail as Providers.Aws
 import qualified Clompse.Providers.Do as Providers.Do
+import qualified Clompse.Providers.Hetzner as Providers.Hetzner
 import Clompse.Types (DnsRecord (_dnsRecordProvider))
 import qualified Clompse.Types as Types
 import qualified Control.Concurrent.Async.Pool as Async
@@ -81,8 +82,11 @@ listDomainRecordsForCloudConnection (CloudConnectionDo conn) = do
   case eRecords of
     Left e -> _log ("    ERROR (DO Domain Records): " <> Z.Text.tshow e) >> pure []
     Right records -> pure records
-listDomainRecordsForCloudConnection (CloudConnectionHetzner _conn) = do
-  pure []
+listDomainRecordsForCloudConnection (CloudConnectionHetzner conn) = do
+  eRecords <- runExceptT (Providers.Hetzner.listDnsRecords conn)
+  case eRecords of
+    Left e -> _log ("    ERROR (Hetzner Domain Records): " <> Z.Text.tshow e) >> pure []
+    Right records -> pure records
 
 
 _log :: MonadIO m => T.Text -> m ()
