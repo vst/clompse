@@ -1,21 +1,14 @@
 {
     "nixpkgs": {
-        "branch": "release-23.11",
+        "branch": "release-24.05",
         "description": "Nix Packages collection",
         "homepage": null,
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "8468b0786c4f5a4e5eab5a4921b75a0139b0474d",
-        "sha256": "0ba0808wjgzxwrxjbf4h8261x3gr0ymd3s97w392rrr86x8kmpcv",
+        "rev": "4e08cafd686c7b2a191a82e593762c3a095f88eb",
+        "sha256": "1pzc8mxwp1sqpnh32kf26skj656kbj7ysrp46d4kqmnlaz3chrqk",
         "type": "tarball",
-        "url": "https://github.com/NixOS/nixpkgs/archive/8468b0786c4f5a4e5eab5a4921b75a0139b0474d.tar.gz",
+        "url": "https://github.com/NixOS/nixpkgs/archive/4e08cafd686c7b2a191a82e593762c3a095f88eb.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
-    },
-    "table-layout": {
-        "sha256": "0vbz8lmjzxz9flpnzjfhis85ck3q6zfn6xa1ms8j5gcgh1bfjilr",
-        "type": "tarball",
-        "url": "https://hackage.haskell.org/package/table-layout-1.0.0.0/table-layout-1.0.0.0.tar.gz",
-        "url_template": "https://hackage.haskell.org/package/table-layout-<version>/table-layout-<version>.tar.gz",
-        "version": "1.0.0.0"
     }
 }
