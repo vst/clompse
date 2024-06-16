@@ -1,0 +1,10 @@
+roots = [
+  ## Definitions we always need:
+  "^Main.main$",
+  "^Clompse.Cli.*$",
+  "^Paths_clompse.*",
+
+  ## Temporary suspensions:
+  "^Zamazingo.*",
+]
+type-class-roots = true
