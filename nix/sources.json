@@ -1,4 +1,19 @@
 {
+    "hetzner": {
+        "author": "Daniel Casanueva (daniel.casanueva `at` proton.me)",
+        "copyright": "",
+        "description": "Hetzner Cloud and DNS library. Check the readme and documentation for more details.",
+        "homepage": "https://gitlab.com/daniel-casanueva/haskell/hetzner",
+        "license": "MIT",
+        "name": "hetzner",
+        "sha256": "0l7l9xcqg4rnczlskzxkxr19306nrxyrwkrxiqcf4nkszs0fi24q",
+        "synopsis": "Hetzner Cloud and DNS library.",
+        "type": "tarball",
+        "uploaded_at": "2024-12-31T16:22:16.76277005Z",
+        "url": "https://hackage.haskell.org/package/hetzner-0.7.1.0.tar.gz",
+        "url_template": "https://hackage.haskell.org/package/<name>-<version>.tar.gz",
+        "version": "0.7.1.0"
+    },
     "nixpkgs": {
         "branch": "release-24.11",
         "description": "Nix Packages collection",

@@ -58,7 +58,9 @@ let
   thisHaskell = mkHaskell {
     haskell = baseHaskell;
     packages = thisHaskellPackagesAll;
-    overrides = self: super: { };
+    overrides = self: super: {
+      hetzner =  self.callCabal2nixWithOptions "hetzner" sources.hetzner "--no-check" { };
+    };
   };
 
   ###########
