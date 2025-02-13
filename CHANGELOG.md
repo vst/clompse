@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.5](https://github.com/vst/clompse/compare/v0.0.4...v0.0.5) (2025-02-13)
+
+
+### Bug Fixes
+
+* **build:** fix GHC version of static builder ([074ff6f](https://github.com/vst/clompse/commit/074ff6f18a5424490c964c8ceee51a70e25b213b))
+
 ## [0.0.4](https://github.com/vst/clompse/compare/v0.0.3...v0.0.4) (2025-02-13)
 
 
