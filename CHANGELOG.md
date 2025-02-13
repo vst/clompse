@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.0.4](https://github.com/vst/clompse/compare/v0.0.3...v0.0.4) (2025-02-13)
+
+
+### Features
+
+* attach firewall information to servers ([e79d153](https://github.com/vst/clompse/commit/e79d1535620a08cf56a057711eb2985356d7723c))
+* list AWS Lightsail buckets ([7b801dc](https://github.com/vst/clompse/commit/7b801dc2203deec011396df3ca1024171a6ba807))
+* list AWS S3 buckets ([bb0a78a](https://github.com/vst/clompse/commit/bb0a78a202a01769ebdb17d7aed854252bcd0a74))
+* list DigitalOcean spaces ([0cf913b](https://github.com/vst/clompse/commit/0cf913b31cfe50ef04c51f02be6ac3b9c2396147))
+* list DNS records managed on AWS Lightsail ([8a60545](https://github.com/vst/clompse/commit/8a6054501ee21c2ee0de821586ba6f64c91b7185))
+* list DNS records managed on AWS Route53 ([118c00e](https://github.com/vst/clompse/commit/118c00eb911844dcdd1227a8cfc451758a8e1f9d))
+* list DNS records managed on DigitalOcean ([6a237a6](https://github.com/vst/clompse/commit/6a237a6131c99b36362ddb8bff1eea4d8671e777))
+* list DNS records managed on Hetzner ([9239890](https://github.com/vst/clompse/commit/9239890abd0dd99df8a7ecf05daa8c8b69cb0905))
+* list domains managed on AWS Lightsail ([bf399b7](https://github.com/vst/clompse/commit/bf399b724dd9d8b6e55d1684c7b80f3803fc5916))
+* list domains managed on AWS Route53 ([2e95c66](https://github.com/vst/clompse/commit/2e95c66694eeee77a8cc968cfcdfc2fb428b2e15))
+* list domains managed on DigitalOcean ([d4e11ed](https://github.com/vst/clompse/commit/d4e11ed70671e7f3e949da056c960bb64887e8b5))
+* list domains managed on Hetzner ([202f034](https://github.com/vst/clompse/commit/202f0340f78d8831e3aeaa836a473f60fd6385ff))
+
+
+### Bug Fixes
+
+* add AWS EC2 instance memory and storage size ([1f2a773](https://github.com/vst/clompse/commit/1f2a7733e9b6e6f84dcde390d63531e80916db55))
+* **deps:** upgrade hetzner library to v0.7.1.0 ([65b4159](https://github.com/vst/clompse/commit/65b415958581a8808486586ee5645c1e2d338cae))
+* parse lightsail instance ID from arn value ([a3455c8](https://github.com/vst/clompse/commit/a3455c82619dd3df9d5eadd76da4a4737130b8dd))
+
 ## [0.0.3](https://github.com/vst/clompse/compare/v0.0.2...v0.0.3) (2024-05-02)
 
 
