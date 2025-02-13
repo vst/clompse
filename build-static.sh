@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+## Fail on errors including pipe failures:
+set -eo pipefail
+
 ## NOTE: Things would be much easier if we could use Nix, but we can
 ## not (or I find it rather tedious). So, we have to use Docker.
 ##
