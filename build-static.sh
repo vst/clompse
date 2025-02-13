@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+## Fail on errors including pipe failures:
+set -eo pipefail
+
 ## NOTE: Things would be much easier if we could use Nix, but we can
 ## not (or I find it rather tedious). So, we have to use Docker.
 ##
@@ -9,7 +12,7 @@
 ## `--enable-executable-stripping`, hence the `strip` command usage.
 
 ## GHC version:
-GHC_VERSION="9.6.5"
+GHC_VERSION="9.6.6"
 
 ## Docker image:
 DOCKER_IMAGE="quay.io/benz0li/ghc-musl:${GHC_VERSION}"
