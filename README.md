@@ -88,7 +88,7 @@ Or install it into your `nix` profile (replace `<VERSION>` with the
 latest version):
 
 ```sh
-nix profile install --file https://github.com/vst/clompse/archive/v<VERSION>.tar.gz app
+nix profile install --file https://github.com/vst/clompse/archive/v<VERSION>.tar.gz
 ```
 
 ## Configuration
@@ -180,7 +180,7 @@ hpack &&
 
 ## License
 
-Copyright &copy; 2024 Vehbi Sinan Tunalioglu. This work is licensed
+Copyright &copy; 2024-2025 Vehbi Sinan Tunalioglu. This work is licensed
 under [MIT License].
 
 <!-- REFERENCES -->
