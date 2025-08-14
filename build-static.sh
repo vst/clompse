@@ -12,7 +12,7 @@ set -eo pipefail
 ## `--enable-executable-stripping`, hence the `strip` command usage.
 
 ## GHC version:
-GHC_VERSION="9.6.6"
+GHC_VERSION="9.8.4"
 
 ## Docker image:
 DOCKER_IMAGE="quay.io/benz0li/ghc-musl:${GHC_VERSION}"
@@ -32,12 +32,20 @@ CONTAINER_NAME="static-builder-for-${EXECUTABLE_NAME}"
 ## Create/update .cabal file:
 hpack
 
+## Update package list:
+cabal update
+
 ## Cleanup first:
 cabal clean
 cabal v1-clean
 
 ## First, pin all packages as per Nix:
 cabal freeze
+
+## Fix tls package version (Remove the line that contains "any.tls ==2.1.1,"):
+##
+## Note that this is a workaround until nixpkgs provides tls>=2.1.1 as stock dependency.
+sed -i '/any.tls ==2.1.1,/d' cabal.project.freeze
 
 ## Run the Docker container:
 docker run -i --detach -v "$(pwd):/app" --name "${CONTAINER_NAME}" "${DOCKER_IMAGE}" /bin/bash
@@ -49,10 +57,20 @@ docker exec "${CONTAINER_NAME}" git config --global --add safe.directory /app
 docker exec "${CONTAINER_NAME}" cabal update
 
 ## Build the static binary:
-docker exec -w "/app" "${CONTAINER_NAME}" cabal build --enable-executable-static
+##
+## Note that the `--allow-newer` flag is used to allow newer versions of
+## dependencies, which is to allow jail-broken nixpkgs dependencies in a
+## non-nix build environment that adopts our .freeze file generated under
+## Nix.
+docker exec -w "/app" "${CONTAINER_NAME}" cabal build --enable-executable-static --allow-newer
 
 ## Get the path to the executable:
-BUILD_PATH="$(docker exec -w "/app" "${CONTAINER_NAME}" cabal list-bin "${EXECUTABLE_NAME}")"
+##
+## Note that the `--allow-newer` flag is used to allow newer versions of
+## dependencies, which is to allow jail-broken nixpkgs dependencies in a
+## non-nix build environment that adopts our .freeze file generated under
+## Nix.
+BUILD_PATH="$(docker exec -w "/app" "${CONTAINER_NAME}" cabal list-bin --allow-newer "${EXECUTABLE_NAME}")"
 
 ## Strip debugging symbols:
 docker exec "${CONTAINER_NAME}" strip "${BUILD_PATH}"
