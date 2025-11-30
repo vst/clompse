@@ -9,6 +9,7 @@ import qualified Amazonka as Aws
 import qualified Amazonka.Data as Aws.Data
 import qualified Amazonka.Lightsail as Aws.Lightsail
 import qualified Amazonka.Lightsail.Lens as Aws.Lightsail.Lens
+import Clompse.Providers.Aws.ApiAws (awsEc2ListAllRegions)
 import Clompse.Providers.Aws.Connection (AwsConnection, _envFromConnection)
 import Clompse.Providers.Aws.Error (AwsError (..))
 import qualified Clompse.Types as Types
@@ -132,7 +133,9 @@ awsLightsailListAllRegions
   -> m [Aws.Region]
 awsLightsailListAllRegions cfg = do
   infos <- awsLightsailListAllRegionInfos cfg
-  mapM _lightsailRegionInfoToRegion infos
+  lsRegions <- mapM _lightsailRegionInfoToRegion infos
+  awRegions <- awsEc2ListAllRegions cfg
+  pure $ filter (`elem` awRegions) lsRegions
 
 
 awsLightsailListAllRegionInfos
