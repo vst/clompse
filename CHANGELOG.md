@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.6](https://github.com/vst/clompse/compare/v0.0.5...v0.0.6) (2025-11-30)
+
+
+### Bug Fixes
+
+* **aws:** exclude inaccessible AWS Lightsail regions ([7be4b7d](https://github.com/vst/clompse/commit/7be4b7ddb029f295567a711184cfb3af2186cd59))
+
 ## [0.0.5](https://github.com/vst/clompse/compare/v0.0.4...v0.0.5) (2025-02-13)
 
 
