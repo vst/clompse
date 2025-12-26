@@ -163,19 +163,10 @@ Provision Nix shell via `direnv`:
 direnv allow
 ```
 
-Big, long build command for the impatient:
+Check, lint, test and build everything with this:
 
 ```sh
-hpack &&
-    direnv reload &&
-    fourmolu -i app/ src/ test/ &&
-    prettier --write . &&
-    find . -iname "*.nix" -not -path "*/nix/sources.nix" -print0 | xargs --null nixpkgs-fmt &&
-    hlint app/ src/ test/ &&
-    cabal build -O0 &&
-    cabal run -O0 clompse -- --version &&
-    cabal v1-test &&
-    cabal haddock -O0
+cabal verify [-c | --clean]
 ```
 
 ## License
