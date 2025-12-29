@@ -28,4 +28,19 @@ build:
   library-stripping: true
 
 ## Extra dependencies pinned to specific commits:
-extra-deps: []
+extra-deps:
+  - github: brendanhay/amazonka
+    commit: a7d699be1076e2aad05a1930ca3937ffea954ad8
+    subdirs:
+      - lib/amazonka
+      - lib/amazonka-core
+      - lib/services/amazonka-ec2
+      - lib/services/amazonka-lightsail
+      - lib/services/amazonka-route53
+      - lib/services/amazonka-s3
+      - lib/services/amazonka-sso
+      - lib/services/amazonka-sts
+  - github: stevenfontanella/microlens
+    commit: a8d75ac12735e5d9962b51822dbcd0f2103267f3
+    subdirs:
+      - microlens-pro
