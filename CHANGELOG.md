@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.7](https://github.com/vst/clompse/compare/v0.0.6...v0.0.7) (2025-12-29)
+
+
+### Bug Fixes
+
+* **build:** add missing amazonka deps to stack.yaml for static builds ([23c506a](https://github.com/vst/clompse/commit/23c506af846c2514528faf850402d62858cf0b8f))
+* **deps:** upgrade nixpkgs to v25.11, bump flake inputs ([df9ddfc](https://github.com/vst/clompse/commit/df9ddfc61b470f3738eaa7cf03b236756563f31a))
+
 ## [0.0.6](https://github.com/vst/clompse/compare/v0.0.5...v0.0.6) (2025-11-30)
 
 
