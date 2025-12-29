@@ -3,32 +3,3 @@ packages:
 
 package *
   ghc-options: -fwrite-ide-info
-
--- BEGIN WORKAROUND
---
--- This workaround is needed to avoid duplicate record field errors on amazonka
--- libraries as per migration to GHC 9.8.4.
---
--- Once all amazonka libraries are updated for GHC 9.8 and/or later, we can
--- remove this workaround.
-package amazonka-ec2
-  ghc-options: -XDuplicateRecordFields
-
-package amazonka-lightsail
-  ghc-options: -XDuplicateRecordFields
-
-package amazonka-route53
-  ghc-options: -XDuplicateRecordFields
-
-package amazonka-s3
-  ghc-options: -XDuplicateRecordFields
-
-package amazonka-sso
-  ghc-options: -XDuplicateRecordFields
-
-package amazonka-sts
-  ghc-options: -XDuplicateRecordFields
-
-package amazonka
-  ghc-options: -XDuplicateRecordFields
--- END WORKAROUND
