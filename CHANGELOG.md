@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.8](https://github.com/vst/clompse/compare/v0.0.7...v0.0.8) (2026-06-11)
+
+
+### Bug Fixes
+
+* **deps:** bump stackage to LTS 24.45 ([1bc8614](https://github.com/vst/clompse/commit/1bc86146ee4e1d61a07f55b34c25ada5ed040e50))
+* **deps:** upgrade nixpkgs to v26.05 ([f01b865](https://github.com/vst/clompse/commit/f01b865b1e932f40f71bb7ed7eac6c95b4cf3410))
+
 ## [0.0.7](https://github.com/vst/clompse/compare/v0.0.6...v0.0.7) (2025-12-29)
 
 
