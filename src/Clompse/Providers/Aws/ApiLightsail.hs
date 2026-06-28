@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
@@ -15,6 +16,7 @@ import Clompse.Providers.Aws.Error (AwsError (..))
 import qualified Clompse.Types as Types
 import Conduit ((.|))
 import qualified Control.Concurrent.Async.Pool as Async
+import qualified Control.Exception as Exception
 import qualified Control.Lens as L
 import Control.Monad.Except (MonadError (..), runExceptT)
 import Control.Monad.IO.Class (MonadIO (..))
@@ -189,7 +191,8 @@ awsLightsailListAllInstancesForRegion cfg reg = do
         Aws.paginate env Aws.Lightsail.newGetInstances
           .| CL.concatMap (L.view $ Aws.Lightsail.Lens.getInstancesResponse_instances . L._Just)
           .| CL.consume
-  fmap (fmap (reg,)) . liftIO . Aws.runResourceT . C.runConduit $ prog
+  res <- liftIO . ignoreLightsailUnavailableRegion . Aws.runResourceT . C.runConduit $ prog
+  pure $ maybe [] (fmap (reg,)) res
 
 
 -- ** Buckets
@@ -217,20 +220,34 @@ awsListAllLightsailBucketsForRegion
 awsListAllLightsailBucketsForRegion cfg reg = do
   env <- (\x -> x {Aws.region = reg}) <$> _envFromConnection cfg
   let prog = Aws.send env Aws.Lightsail.newGetBuckets
-  resIs <- liftIO . Aws.runResourceT $ prog
+  mResIs <- liftIO . ignoreLightsailUnavailableRegion . Aws.runResourceT $ prog
   -- NOTE: Amazonka does not support pagination over Lightsail buckets.
   -- let prog =
   --       Aws.paginate env Aws.Lightsail.newGetBuckets
   --         .| CL.concatMap (L.view $ Aws.Lightsail.Lens.getBucketsResponse_buckets . L._Just)
   --         .| CL.consume
   -- resIs <- liftIO . Aws.runResourceT . C.runConduit $ prog
-  let buckets = fromMaybe [] $ resIs L.^. Aws.Lightsail.Lens.getBucketsResponse_buckets
+  let buckets = foldMap (fromMaybe [] . L.view Aws.Lightsail.Lens.getBucketsResponse_buckets) mResIs
   pure $ mapMaybe mkTuple buckets
   where
     mkTuple b =
       let name = b L.^. Aws.Lightsail.Lens.bucket_name
           time = b L.^. Aws.Lightsail.Lens.bucket_createdAt
        in (,) <$> name <*> time
+
+
+ignoreLightsailUnavailableRegion :: IO a -> IO (Maybe a)
+ignoreLightsailUnavailableRegion action =
+  Exception.catch (Just <$> action) $ \e ->
+    if isLightsailRegionSetupInProgress e
+      then pure Nothing
+      else Exception.throwIO e
+
+
+isLightsailRegionSetupInProgress :: Aws.Error -> Bool
+isLightsailRegionSetupInProgress = \case
+  Aws.ServiceError (Aws.ServiceError' _ _ _ (Aws.ErrorCode "RegionSetupInProgress") _ _) -> True
+  _ -> False
 
 
 -- ** Converters
