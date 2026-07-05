@@ -192,7 +192,7 @@ awsLightsailListAllInstancesForRegion cfg reg = do
           .| CL.concatMap (L.view $ Aws.Lightsail.Lens.getInstancesResponse_instances . L._Just)
           .| CL.consume
   res <- liftIO . ignoreLightsailUnavailableRegion . Aws.runResourceT . C.runConduit $ prog
-  pure $ maybe [] (fmap (reg,)) res
+  pure $ foldMap (fmap (reg,)) res
 
 
 -- ** Buckets
