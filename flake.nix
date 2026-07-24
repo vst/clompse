@@ -4,10 +4,19 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     flake-parts.url = "github:hercules-ci/flake-parts";
+    hetzner-src = {
+      url = "git+https://codeberg.org/daniel-casanueva/hetzner?rev=6041f36d966f5eb2899e66dfc582b9d327666768";
+      flake = false;
+    };
   };
 
   outputs =
-    inputs@{ nixpkgs, flake-parts, ... }:
+    inputs@{
+      nixpkgs,
+      flake-parts,
+      hetzner-src,
+      ...
+    }:
     flake-parts.lib.mkFlake { inherit inputs; } {
       imports = [
         ./nix/flake-modules/read-yaml
@@ -33,6 +42,7 @@
           thisHaskell = pkgs.haskellPackages.override {
             overrides = self: super: {
               ${package.name} = self.callCabal2nix package.name ./. { };
+              hetzner = self.callCabal2nix "hetzner" hetzner-src { };
             };
           };
 

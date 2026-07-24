@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
+{-# OPTIONS_GHC -fno-warn-deprecations #-}
 
 -- | This module provides functions to query remote Hetzner API and
 -- convert responses to Clompse types.
@@ -154,7 +155,7 @@ toServer (srv@Hetzner.Server {..}, fws) =
         , Types._serverState = toServerState serverStatus
         , Types._serverCreatedAt = Just (Time.zonedTimeToUTC serverCreated)
         , Types._serverProvider = Types.ProviderHetzner
-        , Types._serverRegion = Hetzner.locationName . Hetzner.datacenterLocation $ serverDatacenter
+        , Types._serverRegion = "unknown"
         , Types._serverType = Just (Hetzner.serverTypeDescription serverType)
         , Types._serverIpInfo = toServerIpInfo srv
         , Types._serverFirewalls = fmap toFirewall fws

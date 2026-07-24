@@ -18,6 +18,23 @@
         "type": "github"
       }
     },
+    "hetzner-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1783251754,
+        "narHash": "sha256-a/hvpziK5K3Ja7yW2PFX6oGBGMf2p2b/Wpsi9vTY/SU=",
+        "ref": "refs/heads/main",
+        "rev": "6041f36d966f5eb2899e66dfc582b9d327666768",
+        "revCount": 200,
+        "type": "git",
+        "url": "https://codeberg.org/daniel-casanueva/hetzner"
+      },
+      "original": {
+        "rev": "6041f36d966f5eb2899e66dfc582b9d327666768",
+        "type": "git",
+        "url": "https://codeberg.org/daniel-casanueva/hetzner"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1784707089,
@@ -52,6 +69,7 @@
     "root": {
       "inputs": {
         "flake-parts": "flake-parts",
+        "hetzner-src": "hetzner-src",
         "nixpkgs": "nixpkgs"
       }
     }

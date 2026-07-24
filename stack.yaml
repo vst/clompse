@@ -29,6 +29,8 @@ build:
 
 ## Extra dependencies pinned to specific commits:
 extra-deps:
+  - git: https://codeberg.org/daniel-casanueva/hetzner.git
+    commit: 6041f36d966f5eb2899e66dfc582b9d327666768
   - github: brendanhay/amazonka
     commit: a7d699be1076e2aad05a1930ca3937ffea954ad8
     subdirs:
