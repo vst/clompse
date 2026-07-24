@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.9](https://github.com/vst/clompse/compare/v0.0.8...v0.0.9) (2026-07-24)
+
+
+### Bug Fixes
+
+* **deps:** upgrade hetzner library to v0.8.0.0 ([97dabe3](https://github.com/vst/clompse/commit/97dabe321674db17fb710c7cd0a508f837546415))
+
 ## [0.0.8](https://github.com/vst/clompse/compare/v0.0.7...v0.0.8) (2026-07-05)
 
 
